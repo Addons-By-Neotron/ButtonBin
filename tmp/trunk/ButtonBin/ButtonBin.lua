@@ -27,13 +27,12 @@ local tconcat = table.concat
 local tremove = table.remove
 local type = type
 local pairs = pairs
-local min = min
+local ipairs = ipairs
 local tostring = tostring 
-local next = next
-local select = select
 local unpack = unpack
+local lower = string.lower
 
-local buttonBin = nil
+buttonBin = nil
 local ldbObjects = {}
 local buttonFrames = {}
 local options
@@ -70,8 +69,8 @@ local defaults = {
 	    enabled = true
 	 },
       },
-      size = 16,
-      scale = 1.5,
+      size = 24,
+      scale = 1.0,
       width  = 10
    }
 }
@@ -103,28 +102,76 @@ function mod:OnInitialize()
       edgeSize = 6,
       insets = {left = 1, right = 1, top = 1, bottom = 1}
    }
-   buttonBin.mover = CreateFrame("Frame", "ButtonBinMover", UIParent)
+   buttonBin.mover = CreateFrame("Button", "ButtonBinMover", UIParent)
    buttonBin.mover:EnableMouse(true)
    buttonBin.mover:SetMovable(true)
    buttonBin.mover:SetBackdrop(bgFrame)
    buttonBin.mover:SetBackdropColor(0, 1, 0);
    buttonBin.mover:SetClampedToScreen(true)
+   buttonBin.mover:RegisterForClicks("AnyUp")
    buttonBin.mover:SetFrameStrata("HIGH")
-   buttonBin.mover:SetFrameLevel(100)
+   buttonBin.mover:SetFrameLevel(5)
    buttonBin.mover:SetAlpha(0.5)
    buttonBin.mover:SetScript("OnDragStart",
 			     function() buttonBin.mover:StartMoving() end)
    buttonBin.mover:SetScript("OnDragStop",
 			     function()
-				db.point = { buttonBin.mover:GetPoint() } 
+				local s = buttonBin:GetEffectiveScale()
+				db.posx = buttonBin:GetLeft() * s
+				db.posy = buttonBin:GetTop() * s
+				--				mod:trace("Moved to: %f x %f", db.posx, db.posy)
 				buttonBin.mover:StopMovingOrSizing() end)
+   buttonBin.mover:SetScript("OnClick",
+			     function(frame,button)
+				if button == "RightButton" then
+				   mod:ToggleLocked()
+				end
+			     end)
+   buttonBin.mover.text = CreateFrame("Frame")
+   buttonBin.mover.text:SetPoint("BOTTOMLEFT", buttonBin.mover, "TOPLEFT")   
+   buttonBin.mover.text:SetPoint("BOTTOMRIGHT", buttonBin.mover, "TOPRIGHT")
+   buttonBin.mover.text:SetHeight(30)
+   buttonBin.mover.text:SetFrameStrata("DIALOG")
+   buttonBin.mover.text:SetFrameLevel(10)
+
+   buttonBin.mover.text.label = buttonBin.mover.text:CreateFontString(nil, nil, "GameFontNormal")
+   buttonBin.mover.text.label:SetJustifyH("CENTER")
+   buttonBin.mover.text.label:SetPoint("BOTTOM")
+   buttonBin.mover.text.label:SetText("Right click to stop moving")
+   buttonBin.mover.text.label:SetNonSpaceWrap(true)
+   buttonBin.mover.text:SetAlpha(1)
+
    buttonBin.mover:Hide()
+   buttonBin.mover.text:Hide()
    mod:SetupOptions()
+
+   self.ldb =
+      LDB:NewDataObject("ButtonBin",
+			{
+			   type =  "launcher", 
+			   label = "Button Bin",
+			   icon = "Interface\\AddOns\\ButtonBin\\bin.tga",
+			   tooltiptext = ("|cffffff00Left click|r to collapse/uncollapse all other icons.\n"..
+					  "|cffffff00Middle click|r to open the Button Bin configuration.\n"..
+					  "|cffffff00Right click|r to toggle the Button Bin window lock."), 
+
+			   OnClick = function(clickedframe, button)
+					if button == "LeftButton" then
+					   mod:ToggleCollapsed()
+					elseif button == "MiddleButton" then
+					   mod:ToggleConfigDialog()
+					elseif button == "RightButton" then
+					   mod:ToggleLocked()
+					end
+				     end,
+			})
+   
 end
 
 local GameTooltip = GameTooltip
 local function GT_OnLeave(self)
 	self:SetScript("OnLeave", self.oldOnLeave)
+	self.oldOnLeave = nil
 	self:Hide()
 	GameTooltip:EnableMouse(false)
 end
@@ -188,6 +235,7 @@ end
 local function LDB_OnLeave(self)
    local obj = self.obj
 --   resizeWindow(buttonBin)
+   if not obj then return end
    if MouseIsOver(GameTooltip) and (obj.tooltiptext or obj.OnTooltipShow) then return end	
 
    if self.hideTooltipOnLeave or obj.tooltiptext or obj.OnTooltipShow then
@@ -276,9 +324,9 @@ end
 function mod:DisableDataObject(name, obj)
    db.enabledDataObjects[name].enabled = false
    LDB.UnregisterCallback(self, "LibDataBroker_AttributeChanged_"..name)
---   if frames[name] then
---      frames[name]:Hide()
---   end
+   if buttonFrames[name] then
+      self:ReleaseFrame(buttonFrames[name])
+   end
 end
 
 function mod:OnEnable()
@@ -308,12 +356,15 @@ function mod:ApplyProfile()
       mod:ToggleLocked()
    end
    buttonBin:ClearAllPoints()
-   if db.point then
-      buttonBin:SetPoint(unpack(db.point))
-   else
-      buttonBin:SetPoint("CENTER")
-   end
    self:SortFrames() -- will handle any size changes etc
+   local posx = db.posx 
+   local posy = db.posy
+   if posx and posy then
+      local s = buttonBin:GetEffectiveScale()
+      buttonBin:SetPoint("TOPLEFT", posx/s, (posy - UIParent:GetHeight()*UIParent:GetEffectiveScale())/s)
+   else
+      buttonBin:SetPoint("TOPLEFT", UIParent, "CENTER")
+   end
 end
 
 function mod:OnProfileChanged(event, newdb)
@@ -326,10 +377,12 @@ end
 
 function mod:ToggleLocked()
    if buttonBin.mover:IsVisible () then
+      local s = buttonBin:GetEffectiveScale()
       buttonBin:ClearAllPoints()
-      buttonBin:SetPoint(buttonBin.mover:GetPoint())
+      buttonBin:SetPoint("TOPLEFT", db.posx / s, (db.posy - UIParent:GetHeight()*UIParent:GetEffectiveScale())/s)
       buttonBin.mover:RegisterForDrag()
       buttonBin.mover:Hide()
+      buttonBin.mover.text:Hide()
    else
       buttonBin.mover:ClearAllPoints()
       buttonBin.mover:SetWidth(buttonBin:GetWidth())
@@ -339,8 +392,8 @@ function mod:ToggleLocked()
       buttonBin.mover:RegisterForDrag("LeftButton")
       buttonBin:ClearAllPoints()
       buttonBin:SetPoint("TOPLEFT", buttonBin.mover)
-      buttonBin:SetPoint("BOTTOMRIGHT", buttonBin.mover)
       buttonBin.mover:Show()
+      buttonBin.mover.text:Show()
    end
 end
 
@@ -350,6 +403,12 @@ options = {
       name = "Bin Size",
       order = 4,
       args = { 
+	 toggle = {
+	    type = "toggle",
+	    name = "Lock the button bin frame",
+	    get = function() return not buttonBin.mover:IsVisible() end,
+	    set = function() mod:ToggleLocked() end,
+	 },
 	 height = {
 	    type = "range",
 	    name = "Button Size",
@@ -363,7 +422,10 @@ options = {
 	    name = "Bin Scale",
 	    width = "full",
 	    min = 0.01, max = 5, step = 0.05,
-	    set = function(_,val) db.scale = val buttonBin:SetScale(val) end,
+	    set = function(_,val) db.scale = val
+		     buttonBin:SetScale(val)
+		     buttonBin.mover:SetScale(buttonBin:GetScale())
+		  end,
 	    get = function() return db.scale end
 	 },
 	 width = {
@@ -375,6 +437,35 @@ options = {
 	    get = function() return db.width end
 	 },
 
+      }
+   },
+   objects = {
+      name = "Enabled Data Objects",
+      type = "group",
+      args = {
+	 objs = {
+	    name = "",
+	    type = "multiselect",
+	    values = function()
+			local tbl = {}
+			for name in pairs(db.enabledDataObjects) do
+			   if name ~= "ButtonBin" and LDB:GetDataObjectByName(name) then
+			      tbl[name] = name
+			   end
+			end
+			return tbl
+		     end,
+	    get = function(_,key)  return db.enabledDataObjects[key].enabled end,
+	    set = function(_,key,state)
+		     db.enabledDataObjects[key].enabled = state
+		     if state then
+			mod:LibDataBroker_DataObjectCreated("config", key,
+							    LDB:GetDataObjectByName(key))
+		     else
+			mod:DisableDataObject(key)
+		     end
+		  end
+	       }
       }
    },
    cmdline = {
@@ -415,6 +506,7 @@ end
 
 function mod:SetupOptions()
    mod.main = mod:OptReg("Button Bin", options.sizing)
+   mod:OptReg(": Data Blocks", options.objects, "Data Blocks")
    mod.profile = mod:OptReg(": Profiles", options.profile, "Profiles")
    mod:OptReg("Button Bin CmdLine", options.cmdline, nil,  { "buttonbin", "bin" })
 end
@@ -424,6 +516,11 @@ function mod:ToggleConfigDialog()
    InterfaceOptionsFrame_OpenToFrame(mod.main)
 end
 
+function mod:ToggleCollapsed()
+   buttonBin.collapsed = not buttonBin.collapsed
+   mod:SortFrames()
+end
+
 
 function mod:SortFrames()
    local xoffset = 0
@@ -431,8 +528,18 @@ function mod:SortFrames()
    local height = 0
    local sorted = {}
    local frame
-   for name in pairs(buttonFrames) do table.insert(sorted, name) end
-   tsort(sorted)
+   local addBin = false
+   if not buttonBin.collapsed then
+      for name in pairs(buttonFrames) do
+	 if name ~= "ButtonBin" then tinsert(sorted, name) else addBin = true end
+      end
+      tsort(sorted)
+   else
+      for name in pairs(buttonFrames) do
+	 if name ~= "ButtonBin" then buttonFrames[name]:Hide() else addBin = true end
+      end
+   end
+   if addBin then tinsert(sorted, 1, "ButtonBin") end
    local count = 1
    local previousFrame
    for _,name in ipairs(sorted) do
@@ -463,6 +570,8 @@ function mod:SortFrames()
    buttonBin:SetWidth(width)
    buttonBin:SetHeight(height)
    buttonBin:Show()
+   buttonBin.mover:SetWidth(buttonBin:GetWidth())
+   buttonBin.mover:SetHeight(buttonBin:GetHeight())
 end
 
 
@@ -498,6 +607,9 @@ function mod:ReleaseFrame(frame)
    frame.db = nil
    frame.name = nil
    frame.obj = nil
+   frame:SetScript("OnEnter", nil)
+   frame:SetScript("OnLeave", nil)
+   frame:SetScript("OnClick", nil)
    self:SortFrames()
 end
    
