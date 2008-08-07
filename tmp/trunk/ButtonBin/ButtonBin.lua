@@ -16,6 +16,9 @@ if Logger then
    Logger:Embed(ButtonBin)
 end
 
+
+local BB_DEBUG = false 
+
 local C = LibStub("AceConfigDialog-3.0")
 local DBOpt = LibStub("AceDBOptions-3.0")
 local mod = ButtonBin
@@ -32,7 +35,7 @@ local tostring = tostring
 local unpack = unpack
 local lower = string.lower
 
-buttonBin = nil
+local buttonBin
 local ldbObjects = {}
 local buttonFrames = {}
 local options
@@ -69,9 +72,14 @@ local defaults = {
 	    enabled = true
 	 },
       },
+      collapsed = false,
       size = 24,
       scale = 1.0,
-      width  = 10
+      width  = 10,
+      flipx = false,
+      flipy = false,
+      hpadding = 0.5,
+      vpadding = 0.5
    }
 }
 
@@ -83,7 +91,6 @@ function mod:OnInitialize()
    self.db.RegisterCallback(self, "OnProfileReset", "OnProfileChanged")
    db = self.db.profile
 
-   
    options.profile = DBOpt:GetOptionsTable(self.db)
 
    buttonBin = CreateFrame("Frame", "ButtonBinParent", UIParent)
@@ -116,10 +123,7 @@ function mod:OnInitialize()
 			     function() buttonBin.mover:StartMoving() end)
    buttonBin.mover:SetScript("OnDragStop",
 			     function()
-				local s = buttonBin:GetEffectiveScale()
-				db.posx = buttonBin:GetLeft() * s
-				db.posy = buttonBin:GetTop() * s
-				--				mod:trace("Moved to: %f x %f", db.posx, db.posy)
+				mod:SavePosition(buttonBin)
 				buttonBin.mover:StopMovingOrSizing() end)
    buttonBin.mover:SetScript("OnClick",
 			     function(frame,button)
@@ -166,6 +170,11 @@ function mod:OnInitialize()
 				     end,
 			})
    
+   if BB_DEBUG then
+      -- Just for easy access while debugging
+      bbdb = db
+      bbf = buttonBin
+   end
 end
 
 local GameTooltip = GameTooltip
@@ -175,6 +184,7 @@ local function GT_OnLeave(self)
 	self:Hide()
 	GameTooltip:EnableMouse(false)
 end
+
 
 local function getAnchors(frame)
    local x, y = frame:GetCenter()
@@ -318,7 +328,7 @@ function mod:EnableDataObject(name, obj)
 
    LDB.RegisterCallback(self, "LibDataBroker_AttributeChanged_"..name, "AttributeChanged")
 
-   mod:SortFrames()
+   mod:SortFrames(buttonBin)
 end
 
 function mod:DisableDataObject(name, obj)
@@ -338,7 +348,7 @@ function mod:OnEnable()
       self:LibDataBroker_DataObjectCreated(nil, name, obj)
    end
    LDB.RegisterCallback(self, "LibDataBroker_DataObjectCreated")
-   self:SortFrames()
+   self:SortFrames(buttonBin)
 end
 
 function mod:OnDisable()
@@ -356,14 +366,40 @@ function mod:ApplyProfile()
       mod:ToggleLocked()
    end
    buttonBin:ClearAllPoints()
-   self:SortFrames() -- will handle any size changes etc
+   self:SortFrames(buttonBin) -- will handle any size changes etc
+   mod:LoadPosition(buttonBin)
+end
+
+function mod:SavePosition(bin)
+   local s = bin:GetEffectiveScale()
+   if db.flipy then
+      db.posy = bin:GetBottom() * s
+      db.anchor = "BOTTOM"
+   else
+      db.posy =  bin:GetTop() * s - UIParent:GetHeight()*UIParent:GetEffectiveScale() 
+      db.anchor = "TOP"
+   end
+   if db.flipx then
+      db.anchor = db.anchor .. "RIGHT"
+      db.posx = bin:GetRight() * s - UIParent:GetWidth()*UIParent:GetEffectiveScale() 
+   else
+      db.anchor = db.anchor .. "LEFT"
+      db.posx = bin:GetLeft() * s
+   end
+end
+
+function mod:LoadPosition(bin)
    local posx = db.posx 
    local posy = db.posy
+
+   local anchor = db.anchor
+   bin:ClearAllPoints()
+   if not anchor then  anchor = "TOPLEFT" end
+   local s = bin:GetEffectiveScale()
    if posx and posy then
-      local s = buttonBin:GetEffectiveScale()
-      buttonBin:SetPoint("TOPLEFT", posx/s, (posy - UIParent:GetHeight()*UIParent:GetEffectiveScale())/s)
+      bin:SetPoint(anchor, posx/s, posy/s)
    else
-      buttonBin:SetPoint("TOPLEFT", UIParent, "CENTER")
+      bin:SetPoint(anchor, UIParent, "CENTER")
    end
 end
 
@@ -378,11 +414,10 @@ end
 function mod:ToggleLocked()
    if buttonBin.mover:IsVisible () then
       local s = buttonBin:GetEffectiveScale()
-      buttonBin:ClearAllPoints()
-      buttonBin:SetPoint("TOPLEFT", db.posx / s, (db.posy - UIParent:GetHeight()*UIParent:GetEffectiveScale())/s)
       buttonBin.mover:RegisterForDrag()
       buttonBin.mover:Hide()
       buttonBin.mover.text:Hide()
+      mod:LoadPosition(buttonBin)
    else
       buttonBin.mover:ClearAllPoints()
       buttonBin.mover:SetWidth(buttonBin:GetWidth())
@@ -397,44 +432,100 @@ function mod:ToggleLocked()
    end
 end
 
+function mod:ReloadFrame(bin)
+   mod:SortFrames(bin)
+   mod:SavePosition(bin)
+   mod:LoadPosition(bin)
+end
+
 options = { 
    sizing = {
       type = "group",
       name = "Bin Size",
       order = 4,
-      args = { 
+      childGroups = "tab",
+      args = {
+	 orientation = {
+	    type = "group",
+	    name = "Orientation",
+	    args = {
+	       flipx = {
+		  type = "toggle",
+		  name = "Flip x-axis",
+		  desc = "If toggled, the buttons will expand to the left instead of to the right.",
+		  get = function() return db.flipx end,
+		  set = function() db.flipx = not db.flipx mod:ReloadFrame(buttonBin) end,
+	       },
+	       flipy = {
+		  type = "toggle",
+		  name = "Flip y-axis",
+		  desc = "If toggled, the buttons will expand upwards instead of downwards.",
+		  get = function() return db.flipy end,
+		  set = function() db.flipy = not db.flipy mod:ReloadFrame(buttonBin) end,
+	       },
+	    }
+	 },
 	 toggle = {
 	    type = "toggle",
 	    name = "Lock the button bin frame",
+	    width = "full",
 	    get = function() return not buttonBin.mover:IsVisible() end,
 	    set = function() mod:ToggleLocked() end,
 	 },
-	 height = {
-	    type = "range",
-	    name = "Button Size",
-	    width = "full",
-	    min = 5, max = 50, step = 1,
-	    set = function(_,val) db.size = val mod:SortFrames() end,
-	    get = function() return db.size end
-	 }, 
-	 scale = {
-	    type = "range",
-	    name = "Bin Scale",
-	    width = "full",
-	    min = 0.01, max = 5, step = 0.05,
-	    set = function(_,val) db.scale = val
-		     buttonBin:SetScale(val)
-		     buttonBin.mover:SetScale(buttonBin:GetScale())
-		  end,
-	    get = function() return db.scale end
+	 spacing = {
+	    type = "group",
+	    name = "Padding",
+	    args = { 
+	       hortspacing = {
+		  type = "range",
+		  name = "Horizontal Button Padding",
+		  width = "full",
+		  min = 0, max = 50, step = 0.1,
+		  set = function(_,val) db.hpadding = val mod:SortFrames(buttonBin) end,
+		  get = function() return db.hpadding end
+	       }, 
+	       vertspacing = {
+		  type = "range",
+		  name = "Vertical Button Padding",
+		  width = "full",
+		  min = 0, max = 50, step = 0.1,
+		  set = function(_,val) db.vpadding = val mod:SortFrames(buttonBin) end,
+		  get = function() return db.vpadding end
+	       },
+	    }
 	 },
-	 width = {
-	    type = "range",
-	    name = "Bin Width",
-	    width = "full",
-	    min = 1, max = 100, step = 1, 
-	    set = function(_,val) db.width = val mod:SortFrames() end,
-	    get = function() return db.width end
+	 sizing = {
+	    type = "group",
+	    name = "Sizing",
+	    args = {
+	       height = {
+		  type = "range",
+		  name = "Button Size",
+		  width = "full",
+		  min = 5, max = 50, step = 1,
+		  set = function(_,val) db.size = val mod:SortFrames(buttonBin) end,
+		  get = function() return db.size end
+	       },
+	       scale = {
+		  type = "range",
+		  name = "Bin Scale",
+		  width = "full",
+		  min = 0.01, max = 5, step = 0.05,
+		  set = function(_,val) db.scale = val
+			   buttonBin:SetScale(val)
+			   buttonBin.mover:SetScale(buttonBin:GetScale())
+			end,
+		  get = function() return db.scale end
+	       },
+	       width = {
+		  type = "range",
+		  name = "Bin Width",
+		  width = "full",
+		  min = 1, max = 100, step = 1, 
+		  set = function(_,val) db.width = val mod:SortFrames(buttonBin) end,
+		  get = function() return db.width end
+	       },
+	    }
 	 },
 
       }
@@ -517,19 +608,19 @@ function mod:ToggleConfigDialog()
 end
 
 function mod:ToggleCollapsed()
-   buttonBin.collapsed = not buttonBin.collapsed
-   mod:SortFrames()
+   db.collapsed = not db.collapsed
+   mod:SortFrames(buttonBin)
 end
 
 
-function mod:SortFrames()
+function mod:SortFrames(bin)
    local xoffset = 0
    local width = 0
    local height = 0
    local sorted = {}
    local frame
    local addBin = false
-   if not buttonBin.collapsed then
+   if not db.collapsed then
       for name in pairs(buttonFrames) do
 	 if name ~= "ButtonBin" then tinsert(sorted, name) else addBin = true end
       end
@@ -539,23 +630,43 @@ function mod:SortFrames()
 	 if name ~= "ButtonBin" then buttonFrames[name]:Hide() else addBin = true end
       end
    end
+   
    if addBin then tinsert(sorted, 1, "ButtonBin") end
    local count = 1
    local previousFrame
+
+   local corner, xmulti, ymulti
+   if db.flipy then
+      ymulti = 1
+      corner = "BOTTOM"
+   else
+      ymulti = -1
+      corner = "TOP"
+   end
+   if db.flipx then
+      corner = corner .. "RIGHT"
+      xmulti = -1
+   else
+      corner = corner .. "LEFT"
+      xmulti = 1
+   end
+
+   local hpadding = (db.size + db.hpadding)
+   local vpadding = (db.size + db.vpadding)
    for _,name in ipairs(sorted) do
-      if count == 1 then height = height + db.size end
+      if count == 1 then height = height + vpadding end
       frame = buttonFrames[name]
       frame:SetWidth(db.size)
       frame:SetHeight(db.size)
       frame:ClearAllPoints()
       if previousFrame then
-	 frame:SetPoint("TOPLEFT", previousFrame, "TOPRIGHT")
+	 frame:SetPoint(corner, previousFrame, corner, xmulti*hpadding, 0)
       else
-	 frame:SetPoint("TOPLEFT", buttonBin, "TOPLEFT", 0, -(height-db.size))
+	 frame:SetPoint(corner, bin, corner, 0, ymulti*(height-vpadding))
       end
       frame:Show()
       count = count + 1
-      xoffset = xoffset + frame:GetWidth()
+      xoffset = xoffset + hpadding
       if xoffset > width then
 	 width =  xoffset
       end
@@ -567,11 +678,11 @@ function mod:SortFrames()
 	 previousFrame = frame
       end
    end
-   buttonBin:SetWidth(width)
-   buttonBin:SetHeight(height)
-   buttonBin:Show()
-   buttonBin.mover:SetWidth(buttonBin:GetWidth())
-   buttonBin.mover:SetHeight(buttonBin:GetHeight())
+   bin:SetWidth(width)
+   bin:SetHeight(height)
+   bin:Show()
+   bin.mover:SetWidth(bin:GetWidth())
+   bin.mover:SetHeight(bin:GetHeight())
 end
 
 
@@ -610,6 +721,6 @@ function mod:ReleaseFrame(frame)
    frame:SetScript("OnEnter", nil)
    frame:SetScript("OnLeave", nil)
    frame:SetScript("OnClick", nil)
-   self:SortFrames()
+   self:SortFrames(buttonBin)
 end
    
