@@ -78,6 +78,7 @@ local defaults = {
       width  = 10,
       flipx = false,
       flipy = false,
+      hideEmpty = true,
       hpadding = 0.5,
       vpadding = 0.5
    }
@@ -288,6 +289,7 @@ local updaters = {
 	  end,	
    icon = function(frame, value, name)
 	     frame.icon:SetTexture(value)
+	     frame._has_texture = not not value
 	  end,
    OnClick = function(frame, value)
 		frame:SetScript("OnClick", value)
@@ -472,6 +474,14 @@ options = {
 	    get = function() return not buttonBin.mover:IsVisible() end,
 	    set = function() mod:ToggleLocked() end,
 	 },
+	 hide = {
+	    type = "toggle",
+	    name = "Hide blocks without icons",
+	    desc = "This will hide all addons that lack icons instead of showing an empty space.",
+	    width = "full",
+	    get = function() return db.hideEmpty end,
+	    set = function() db.hideEmpty = not db.hideEmpty mod:SortFrames(buttonBin) end,
+	 },
 	 spacing = {
 	    type = "group",
 	    name = "Padding",
@@ -635,47 +645,50 @@ function mod:SortFrames(bin)
    local count = 1
    local previousFrame
 
-   local corner, xmulti, ymulti
+   local anchor, xmulti, ymulti
    if db.flipy then
       ymulti = 1
-      corner = "BOTTOM"
+      anchor = "BOTTOM"
    else
       ymulti = -1
-      corner = "TOP"
+      anchor = "TOP"
    end
    if db.flipx then
-      corner = corner .. "RIGHT"
+      anchor = anchor .. "RIGHT"
       xmulti = -1
    else
-      corner = corner .. "LEFT"
+      anchor = anchor .. "LEFT"
       xmulti = 1
    end
 
    local hpadding = (db.size + db.hpadding)
    local vpadding = (db.size + db.vpadding)
+   
    for _,name in ipairs(sorted) do
-      if count == 1 then height = height + vpadding end
       frame = buttonFrames[name]
-      frame:SetWidth(db.size)
-      frame:SetHeight(db.size)
-      frame:ClearAllPoints()
-      if previousFrame then
-	 frame:SetPoint(corner, previousFrame, corner, xmulti*hpadding, 0)
-      else
-	 frame:SetPoint(corner, bin, corner, 0, ymulti*(height-vpadding))
-      end
-      frame:Show()
-      count = count + 1
-      xoffset = xoffset + hpadding
-      if xoffset > width then
-	 width =  xoffset
-      end
-      if count > db.width then
-	 previousFrame = nil
-	 xoffset = 0
-	 count = 1
-      else
-	 previousFrame = frame
+      if not db.hideEmpty or frame._has_texture then
+	 if count == 1 then height = height + vpadding end
+	 frame:SetWidth(db.size)
+	 frame:SetHeight(db.size)
+	 frame:ClearAllPoints()
+	 if previousFrame then
+	    frame:SetPoint(anchor, previousFrame, anchor, xmulti*hpadding, 0)
+	 else
+	    frame:SetPoint(anchor, bin, anchor, 0, ymulti*(height-vpadding))
+	 end
+	 frame:Show()
+	 count = count + 1
+	 xoffset = xoffset + hpadding
+	 if xoffset > width then
+	    width =  xoffset
+	 end
+	 if count > db.width then
+	    previousFrame = nil
+	    xoffset = 0
+	    count = 1
+	 else
+	    previousFrame = frame
+	 end
       end
    end
    bin:SetWidth(width)
@@ -718,6 +731,7 @@ function mod:ReleaseFrame(frame)
    frame.db = nil
    frame.name = nil
    frame.obj = nil
+   frame._has_texture = nil
    frame:SetScript("OnEnter", nil)
    frame:SetScript("OnLeave", nil)
    frame:SetScript("OnClick", nil)
