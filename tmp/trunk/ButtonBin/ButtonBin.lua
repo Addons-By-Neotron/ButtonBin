@@ -194,7 +194,7 @@ function mod:OnInitialize()
       -- Create a new bin based on the old stored data
       for id,name in pairs(db.sortedButtons) do
 	 if name == "ButtonBin" then
-	    tremove(db.sortedButtons, name)
+	    tremove(db.sortedButtons, id)
 	    break
 	 end
       end
@@ -821,8 +821,8 @@ function mod:SortFrames(bin)
    if bdb.flipx then anchor = anchor .. "RIGHT"  xmulti = -1
    else anchor = anchor .. "LEFT" xmulti = 1 end
 
-   local hpadding = bdb.hpadding
-   local vpadding = (bdb.size + bdb.vpadding)
+   local hpadding = bdb.hpadding or 0
+   local vpadding = (bdb.size + (bdb.vpadding or 0))
 
    previousFrame = bin.button
    if previousFrame then
