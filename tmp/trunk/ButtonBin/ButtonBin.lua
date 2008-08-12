@@ -134,7 +134,7 @@ local function BB_OnClick(clickedFrame, button)
    elseif button == "MiddleButton" then
       mod:ToggleLocked()
    elseif button == "RightButton" then
-      mod:ToggleConfigDialog()
+      mod:ToggleConfigDialog(clickedFrame)
    end
 end
 
@@ -764,7 +764,7 @@ function mod:AddBinOptions(id)
       bins[id].GetOption = mod.GetBinOption
       bins[id].SetOption = mod.SetBinOption
    end
-   mod.profile = mod:OptReg(": "..bin.name, bin, bin.name)
+   mod.binopts[id] = mod:OptReg(": "..bin.name, bin, bin.name)
    
 end
 
@@ -772,21 +772,26 @@ function mod:SetupOptions()
    mod.main = mod:OptReg("Button Bin", options.global)
    mod:OptReg(": Data Blocks", options.objects, "Data Blocks")
    mod.profile = mod:OptReg(": Profiles", options.profile, "Profiles")
+   mod.binopts = {}
    for id, bin in ipairs(db.bins) do
       mod:AddBinOptions(id)
    end
    mod:OptReg("Button Bin CmdLine", options.cmdline, nil,  { "buttonbin", "bin" })
 end
 
-function mod:ToggleConfigDialog()
-   InterfaceOptionsFrame_OpenToFrame(mod.profile)
-   InterfaceOptionsFrame_OpenToFrame(mod.main)
+function mod:ToggleConfigDialog(frame)
+   if frame then 
+      bin = frame:GetParent()
+      InterfaceOptionsFrame_OpenToFrame(mod.binopts[bin.binId])
+   else
+      InterfaceOptionsFrame_OpenToFrame(mod.profile)
+      InterfaceOptionsFrame_OpenToFrame(mod.main)
+   end
 end
 
 function mod:ToggleCollapsed(frame)
    local bdb
    bin = frame:GetParent()
---   mod:Print("bin id = "..tostring(bin.binId))
    bdb = db.bins[bin.binId]
    bdb.collapsed = not bdb.collapsed
    mod:SortFrames(bin)
