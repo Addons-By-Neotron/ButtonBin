@@ -298,7 +298,9 @@ function mod:OnInitialize()
       f.button.db = { bin = id, tooltiptext = tooltip:format(id) }
       f.button.obj = f.button.db
       f.button.name = "ButtonBin"
-      f.button.buttonBinText = "Bin #"..id
+      if bdb.binLabel then
+	 f.button.buttonBinText = "Bin #"..id
+      end
       if bdb.hidden then f:Hide() else f:Show() end
       f.mover:Hide()
       f.mover.text:Hide()
@@ -444,6 +446,12 @@ function mod:PLAYER_REGEN_DISABLED()
 end
 
 function mod:ApplyProfile()
+   for _,frame in pairs(buttonFrames) do
+      mod:ReleaseFrame(frame)
+   end
+   for name, obj in LDB:DataObjectIterator() do
+      self:LibDataBroker_DataObjectCreated(nil, name, obj)
+   end   
    for _,bin in ipairs(bins) do
       if bin.mover:IsVisible() then
 	 mod:ToggleLocked()
@@ -572,14 +580,14 @@ options = {
 	    get = function() return not unlockFrames end,
 	    set = function() mod:ToggleLocked() end,
 	 },
---	 toggleButton = {
---	    type = "toggle",
---	    name = "Lock data broker button positions",
---	    desc = "When unlocked, you can move buttons into a new position on the bar.",
---	    width = "full",
---	    get = function() return not unlockButtons end,
---	    set = function() mod:ToggleButtonLock() end
---	 },
+	 toggleButton = {
+	    type = "toggle",
+	    name = "Lock data broker button positions",
+	    desc = "When unlocked, you can move buttons into a new position on the bar.",
+	    width = "full",
+	    get = function() return not unlockButtons end,
+	    set = function() mod:ToggleButtonLock() end
+	 },
       }
    },
    binConfig = {
@@ -590,6 +598,51 @@ options = {
       get = "GetOption", 
       set = "SetOption", 
       args = {
+	 general = {
+	    type = "group",
+	    name = "General",
+	    args = {
+	       hideEmpty = {
+		  type = "toggle",
+		  name = "Hide blocks without icons",
+		  desc = "This will hide all addons that lack icons instead of showing an empty space.",
+		  width = "full",
+		  order = 10,
+	       },
+	       hidden = {
+		  type = "toggle",
+		  name = "Hide button bin",
+		  desc = "Hide or show this bin.",
+		  width = "full",
+		  order = 20,
+	       },
+	       hideBinIcon = {
+		  type = "toggle",
+		  name = "Hide button bin icon",
+		  desc = "Hide or show the button bin icon for this bin.",
+		  width = "full",
+		  order = 30
+	       },
+	       showLabels = {
+		  type = "toggle",
+		  name = "Show labels",
+		  order = 40,
+	       },
+	       binLabel = {
+		  type = "toggle",
+		  name = "Show Button Bin label",
+		  order = 50,
+		  disabled = "DisableLabelOption",
+	       },
+	       shortLabels = {
+		  type = "toggle",
+		  name = "Show short text",
+		  desc = "Only show the value text, not the labels.",
+		  order = 70,
+		  disabled = "DisableLabelOption",
+	       },
+	    }
+	 },
 	 orientation = {
 	    type = "group",
 	    name = "Orientation",
@@ -598,92 +651,63 @@ options = {
 		  type = "toggle",
 		  name = "Flip x-axis",
 		  desc = "If toggled, the buttons will expand to the left instead of to the right.",
+		  order = 90,
 	       },
 	       flipy = {
 		  type = "toggle",
 		  name = "Flip y-axis",
 		  desc = "If toggled, the buttons will expand upwards instead of downwards.",
+		  order = 100,
 	       },
 	       flipicons = {
 		  type = "toggle",
 		  name = "Icons on the left",
 		  desc = "If checked, icons will be placed to the left of the label.",
-	       },
-	    }
-	 },
-	 hideEmpty = {
-	    type = "toggle",
-	    name = "Hide blocks without icons",
-	    desc = "This will hide all addons that lack icons instead of showing an empty space.",
-	    width = "full",
-	 },
-	 hidden = {
-	    type = "toggle",
-	    name = "Hide button bin",
-	    desc = "Hide or show this bin.",
-	    width = "full",
-	 },
-	 labels = {
-	    type = "group",
-	    name = "Labeling",
-	    args = {
-	       binLabel = {
-		  type = "toggle",
-		  name = "Show BB Label",
-	       },
-	       showLabels = {
-		  type = "toggle",
-		  name = "Show labels",
-	       },
-	       shortLabels = {
-		  type = "toggle",
-		  name = "Show short text",
-		  desc = "Only show the value text, not the labels.",
+		  order = 110,
 	       },
 	    }
 	 },
 	 spacing = {
 	    type = "group",
-	    name = "Padding",
-	    args = { 
+	    name = "Padding and Sizing",
+	    args = {
 	       hpadding = {
 		  type = "range",
 		  name = "Horizontal Button Padding",
 		  width = "full",
 		  min = 0, max = 50, step = 0.1,
+		  order = 130,
 	       }, 
 	       vpadding = {
 		  type = "range",
 		  name = "Vertical Button Padding",
 		  width = "full",
 		  min = 0, max = 50, step = 0.1,
+		  order = 140,
 	       },
-	    }
-	 },
-	 sizing = {
-	    type = "group",
-	    name = "Sizing",
-	    args = {
 	       size = {
 		  type = "range",
 		  name = "Button Size",
 		  width = "full",
 		  min = 5, max = 50, step = 1,
+		  order = 160,
 	       },
 	       scale = {
 		  type = "range",
 		  name = "Bin Scale",
 		  width = "full",
 		  min = 0.01, max = 5, step = 0.05,
+		  order = 170,
 	       },
 	       width = {
 		  type = "range",
 		  name = "Bin Width",
 		  width = "full",
 		  min = 1, max = 100, step = 1, 
+		  order = 180,
 	       },
 	    }
-	 },
+	 }
       }
    },
    objects = {
@@ -750,6 +774,10 @@ function mod:OptReg(optname, tbl, dispname, cmd)
       end
    end
 end
+function mod:DisableLabelOption(info)
+   local bdb = db.bins[self.binId]
+   return not bdb.showLabels
+end
 
 function mod:GetBinOption(info)
    local bdb = db.bins[self.binId]
@@ -791,6 +819,7 @@ function mod:AddBinOptions(id)
    if not bins[id].GetOption then
       bins[id].GetOption = mod.GetBinOption
       bins[id].SetOption = mod.SetBinOption
+      bins[id].DisableLabelOption = mod.DisableLabelOption
    end
    mod.binopts[id] = mod:OptReg(": "..bin.name, bin, bin.name)
    
@@ -834,7 +863,7 @@ function mod:SortFrames(bin)
    local sorted = bdb.sortedButtons
    local frame
    local addBin = false
-   if bdb.collapsed then
+   if not bdb.hideBinIcon and bdb.collapsed then
       for id,name in pairs(sorted) do
 	 if buttonFrames[name] then
 	    buttonFrames[name]:Hide()
@@ -862,9 +891,8 @@ function mod:SortFrames(bin)
 
    local hpadding = (bdb.hpadding or 0)
    local vpadding = (bdb.size + (bdb.vpadding or 0))
-
-   previousFrame = bin.button
-   if previousFrame then
+   if not bdb.hideBinIcon then
+      previousFrame = bin.button
       previousFrame:resizeWindow()
       previousFrame:ClearAllPoints()
       previousFrame:SetPoint(anchor, bin, anchor, 0, 0)
@@ -876,6 +904,9 @@ function mod:SortFrames(bin)
       else
 	 previousFrame = nil
       end
+   else
+      bin.button:ClearAllPoints()
+      bin.button:Hide()
    end
    
    for _,name in ipairs(sorted) do
@@ -1024,10 +1055,10 @@ local function Frame_ResizeFrame(self)
 
    if bdb.flipicons then
       self.icon:SetPoint("RIGHT", self)
-      self.label:SetPoint("RIGHT", self.icon, "LEFT", -4, 0)
+      self.label:SetPoint("RIGHT", self.icon, "LEFT", -2, 0)
    else
       self.icon:SetPoint("LEFT", self)
-      self.label:SetPoint("LEFT", self.icon, "RIGHT", 4, 0)
+      self.label:SetPoint("LEFT", self.icon, "RIGHT", 2, 0)
    end
 
 
@@ -1046,7 +1077,7 @@ local function Frame_ResizeFrame(self)
       self.label:Show()
       width = self.label:GetStringWidth()
       self.label:SetWidth(width)
-      width = width + bdb.size
+      width = width + bdb.size + 6
    else
       self.label:Hide()
       width = bdb.size
