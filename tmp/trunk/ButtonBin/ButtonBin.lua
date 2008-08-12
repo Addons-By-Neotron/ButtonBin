@@ -169,7 +169,7 @@ end
 local function LDB_OnLeave(self)
    local obj = self.obj
    if not obj then return end
-   if MouseIsOver(GameTooltip) and (obj.tooltiptext or obj.OnTooltipShow) then return end	
+   if mod:MouseIsOver(GameTooltip) and (obj.tooltiptext or obj.OnTooltipShow) then return end	
 
    if self.hideTooltipOnLeave or obj.tooltiptext or obj.OnTooltipShow then
       GT_OnLeave(GameTooltip)
@@ -298,6 +298,7 @@ function mod:OnInitialize()
       f.button.db = { bin = id, tooltiptext = tooltip:format(id) }
       f.button.obj = f.button.db
       f.button.name = "ButtonBin"
+      f.button.buttonBinText = "Bin #"..id
       if bdb.hidden then f:Hide() else f:Show() end
       f.mover:Hide()
       f.mover.text:Hide()
@@ -330,7 +331,8 @@ end
 
 local updaters = {
    text = function(frame, value, name, object)
-	     local text
+	     local bdb = db.bins[frame.db.bin]
+	     local text, shortText
 	     if type(object.label) == "string" then
 		if object.value and (type(object.value) == "string" or type(object.value) == "number") then
 		   text = fmt("|cffffffff%s:|r %s|cffffffff%s|r", object.label, object.value, ((type(object.suffix) == "string" or type(object.suffix) == "number") and object.suffix) or "")
@@ -339,21 +341,18 @@ local updaters = {
 		else
 		   text = fmt("|cffffffff%s|r", object.label)
 		end
-	     elseif object.value and (type(object.value) == "string" or type(object.value) == "number") then
-		text = fmt("%s|cffffffff%s|r", object.value, ((type(object.suffix) == "string" or type(object.suffix) == "number") and object.suffix) or "")
+	     end
+	     if object.value and (type(object.value) == "string" or type(object.value) == "number") then
+		shortText = fmt("%s|cffffffff%s|r", object.value, ((type(object.suffix) == "string" or type(object.suffix) == "number") and object.suffix) or "")
 	     elseif object.text then
-		text = object.text
+		shortText = object.text
 	     elseif object.type and object.type == "launcher" then
 		local addonName, title = GetAddOnInfo(object.tocname or name)
-		text = fmt("|cffffffff%s|r", title or addonName or name)
+		shortText = fmt("|cffffffff%s|r", title or addonName or name)
 	     end
 	     frame.buttonBinText = text
---	     if text then
---		frame.label:SetText(text)
---		frame.label:Show()
---	     else
-		frame.label:Hide()
---	     end
+	     frame.shortButtonText = shortText
+	     frame:resizeWindow()
 	  end,	
    icon = function(frame, value, name)
 	     frame.icon:SetTexture(value)
@@ -605,6 +604,11 @@ options = {
 		  name = "Flip y-axis",
 		  desc = "If toggled, the buttons will expand upwards instead of downwards.",
 	       },
+	       flipicons = {
+		  type = "toggle",
+		  name = "Icons on the left",
+		  desc = "If checked, icons will be placed to the left of the label.",
+	       },
 	    }
 	 },
 	 hideEmpty = {
@@ -616,8 +620,27 @@ options = {
 	 hidden = {
 	    type = "toggle",
 	    name = "Hide button bin",
-	    desc = "Hidw or show this bin.",
+	    desc = "Hide or show this bin.",
 	    width = "full",
+	 },
+	 labels = {
+	    type = "group",
+	    name = "Labeling",
+	    args = {
+	       binLabel = {
+		  type = "toggle",
+		  name = "Show BB Label",
+	       },
+	       showLabels = {
+		  type = "toggle",
+		  name = "Show labels",
+	       },
+	       shortLabels = {
+		  type = "toggle",
+		  name = "Show short text",
+		  desc = "Only show the value text, not the labels.",
+	       },
+	    }
 	 },
 	 spacing = {
 	    type = "group",
@@ -738,15 +761,20 @@ function mod:SetBinOption(info, val)
    local bdb = db.bins[self.binId]
    local var = info[#info]
 
---   mod:Print(fmt("SetOption(%d,%s) = %s",
---		 self.binId, var, tostring(val)))
-   
    bdb[var] = val
    if var == "scale" then
       self:SetScale(val)
       self.mover:SetScale(self:GetScale())
    elseif var == "hidden" then
       if bdb.hidden then self:Hide() else self:Show() end
+   elseif var == "binLabel" then
+      if val then
+	 self.button.buttonBinText = "Bin #"..self.binId
+      else
+	 self.button.buttonBinText = nil
+      end
+      self.button:resizeWindow()
+      return
    end
    
    mod:ReloadFrame(self) 
@@ -808,25 +836,31 @@ function mod:SortFrames(bin)
    local addBin = false
    if bdb.collapsed then
       for id,name in pairs(sorted) do
---	 mod:Print("Hiding frame "..name.." in bin "..bin.binId)
 	 if buttonFrames[name] then
 	    buttonFrames[name]:Hide()
 	 end
       end 
       sorted = {}
-  end   
+   end   
    
    local count = 1
    local previousFrame
 
-   local anchor, xmulti, ymulti
+   local anchor, xmulti, ymulti, otheranchor
+   
+   if bdb.flipy then ymulti = 1 anchor = "BOTTOM" otheranchor = "BOTTOM"
+   else ymulti = -1 anchor = "TOP" otheranchor = "TOP" end
+   if bdb.flipx then
+      anchor = anchor .. "RIGHT"
+      otheranchor = otheranchor.. "LEFT"
+      xmulti = -1 
+   else
+      otheranchor = otheranchor .. "RIGHT"
+      anchor = anchor .. "LEFT"
+      xmulti = 1
+   end
 
-   if bdb.flipy then ymulti = 1 anchor = "BOTTOM"
-   else ymulti = -1 anchor = "TOP" end
-   if bdb.flipx then anchor = anchor .. "RIGHT"  xmulti = -1
-   else anchor = anchor .. "LEFT" xmulti = 1 end
-
-   local hpadding = bdb.hpadding or 0
+   local hpadding = (bdb.hpadding or 0)
    local vpadding = (bdb.size + (bdb.vpadding or 0))
 
    previousFrame = bin.button
@@ -846,27 +880,30 @@ function mod:SortFrames(bin)
    
    for _,name in ipairs(sorted) do
       frame = buttonFrames[name]
-      if frame and (not bdb.hideEmpty or frame._has_texture) then
-	 if count == 1 then height = height + vpadding end
-	 frame:resizeWindow()
+      if frame then
 	 frame:ClearAllPoints()
-	 local frameWidth = hpadding + frame:GetWidth()
-	 if previousFrame then
-	    frame:SetPoint(anchor, previousFrame, anchor, xmulti*frameWidth, 0)
+	 if (not bdb.hideEmpty or frame._has_texture) then
+	    if count == 1 then height = height + vpadding end
+	    frame:resizeWindow()
+	    if previousFrame then
+	       frame:SetPoint(anchor, previousFrame, otheranchor, xmulti*hpadding, 0)
+	    else
+	       frame:SetPoint(anchor, bin, anchor, 0, ymulti*(height-vpadding))
+	    end
+	    count = count + 1
+	    xoffset = xoffset + hpadding + frame:GetWidth()
+	    if xoffset > width then
+	       width =  xoffset
+	    end
+	    if count > bdb.width then
+	       previousFrame = nil
+	       xoffset = 0
+	       count = 1
+	    else
+	       previousFrame = frame
+	    end
 	 else
-	    frame:SetPoint(anchor, bin, anchor, 0, ymulti*(height-vpadding))
-	 end
-	 count = count + 1
-	 xoffset = xoffset + frameWidth
-	 if xoffset > width then
-	    width =  xoffset
-	 end
-	 if count > bdb.width then
-	    previousFrame = nil
-	    xoffset = 0
-	    count = 1
-	 else
-	    previousFrame = frame
+	    frame:Hide()
 	 end
       end
    end
@@ -908,7 +945,7 @@ local function Button_OnDragStop()
    this:SetFrameLevel(98)
    this:SetAlpha(1.0)
    for id,frame in ipairs(bins) do
-      if MouseIsOver(frame.button) then
+      if mod:MouseIsOver(frame.button) then
 	 destFrame = frame.button
 	 destParent = frame
       end
@@ -916,7 +953,7 @@ local function Button_OnDragStop()
 
    if not destFrame then
       for name,frame in pairs(buttonFrames) do
-	 if MouseIsOver(frame) and frame ~= this then
+	 if mod:MouseIsOver(frame) and frame ~= this then
 	    destFrame = frame
 	    destParent = frame:GetParent()
 	    break
@@ -979,6 +1016,45 @@ local function Button_OnDragStop()
    mod:SortFrames(bin)
 end
 
+local function Frame_ResizeFrame(self)
+   local bdb = db.bins[self.db.bin]
+
+   self.icon:ClearAllPoints()
+   self.label:ClearAllPoints()
+
+   if bdb.flipicons then
+      self.icon:SetPoint("RIGHT", self)
+      self.label:SetPoint("RIGHT", self.icon, "LEFT", -4, 0)
+   else
+      self.icon:SetPoint("LEFT", self)
+      self.label:SetPoint("LEFT", self.icon, "RIGHT", 4, 0)
+   end
+
+
+   self.icon:SetWidth(bdb.size)
+   self.icon:SetHeight(bdb.size)
+
+   self:Show()
+
+   local width
+   if bdb.showLabels then
+      if bdb.shortLabels then
+	 self.label:SetText(self.shortButtonText or self.buttonBinText)
+      else
+	 self.label:SetText(self.buttonBinText or self.shortButtonText)
+      end
+      self.label:Show()
+      width = self.label:GetStringWidth()
+      self.label:SetWidth(width)
+      width = width + bdb.size
+   else
+      self.label:Hide()
+      width = bdb.size
+   end
+   self:SetWidth(width)
+   self:SetHeight(bdb.size)
+end
+
 function mod:GetFrame()
    local frame
    if #unusedFrames > 0 then
@@ -989,24 +1065,8 @@ function mod:GetFrame()
       frame:EnableMouse(true)
       frame:RegisterForClicks("AnyUp")
       frame.icon = frame:CreateTexture()
-      frame.icon:SetPoint("TOPLEFT", frame)
-      frame.icon:SetPoint("BOTTOMLEFT", frame)
       frame.label = frame:CreateFontString(nil, nil, "GameFontNormal")
-      frame.label:SetPoint("LEFT", frame.icon, "RIGHT", 4, 0)
-      frame.resizeWindow = function(self)
-			      local bdb = db.bins[self.db.bin]
-			      self.icon:SetWidth(bdb.size)
-			      self.icon:SetHeight(bdb.size)
-			      if self.label:IsVisible() then
-				 local width = self.label:GetStringWidth()
-				 self.label:SetWidth(width)
-				 self:SetWidth(bdb.size + width)
-			      else
-				 self:SetWidth(bdb.size)
-			      end
-			      self:SetHeight(bdb.size)
-			      self:Show()
-			   end
+      frame.resizeWindow = Frame_ResizeFrame
       frame:SetScript("OnDragStart", Button_OnDragStart)
       frame:SetScript("OnDragStop", Button_OnDragStop)
       
@@ -1031,3 +1091,18 @@ function mod:ReleaseFrame(frame)
    if bin then self:SortFrames(bin) end
 end
    
+function mod:MouseIsOver(frame)
+   local x, y = GetCursorPosition();
+   x = x / frame:GetEffectiveScale();
+   y = y / frame:GetEffectiveScale();
+   
+   local left = frame:GetLeft();
+   local right = frame:GetRight();
+   local top = frame:GetTop();
+   local bottom = frame:GetBottom();
+   if not left then return nil end
+   if ( (x > left and x < right) and (y > bottom and y < top) ) then
+      return true
+   end
+end
+ 
