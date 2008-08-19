@@ -30,6 +30,8 @@ local unpack = unpack
 local lower = string.lower
 
 local bins = {}
+local binTimers = {}
+
 local ldbObjects = {}
 local buttonFrames = {}
 local options
@@ -37,6 +39,7 @@ local db
 
 local unlockButtons = false
 local unlockFrames = false
+local playerInCombat = false
 
 function mod.clear(tbl)
    if type(tbl) == "table" then
@@ -91,6 +94,8 @@ local defaults = {
 	    hidden = true,
 	    labelOnMouse = false,
 	    binLabel = true,
+	    visibility = "always",
+	    hideTimeout = 2,
 	 }
       },
    }
@@ -173,11 +178,17 @@ local function LDB_OnEnter(self, now)
    end
    self._isMouseOver = true
    self:resizeWindow()
+   local bin = self:GetParent()
+   bin._isMouseOver = true
+   bin:ShowOrHide()
 end
 
 local function LDB_OnLeave(self)
    local obj = self.obj
-   self._isMouseOver = false
+   local bin = self:GetParent()
+   self._isMouseOver = nil
+   bin._isMouseOver = nil
+   bin:ShowOrHide(true)
    self:resizeWindow()
    if not obj then return end
    if mod:MouseIsOver(GameTooltip) and (obj.tooltiptext or obj.OnTooltipShow) then return end	
@@ -233,6 +244,8 @@ function mod:OnInitialize()
       f:EnableMouse(true)
       f:SetClampedToScreen(true)
       f:SetScale(sdb.scale)
+      f:SetScript("OnEnter", function(self) self._isMouseOver = true self:ShowOrHide() end)
+      f:SetScript("OnLeave", function(self) self._isMouseOver = nil  self:ShowOrHide(true) end)
       f.mover = CreateFrame("Button", "ButtonBinMover", UIParent)
       f.mover:EnableMouse(true)
       f.mover:SetMovable(true)
@@ -244,11 +257,11 @@ function mod:OnInitialize()
       f.mover:SetFrameLevel(5)
       f.mover:SetAlpha(0.5)
       f.mover:SetScript("OnDragStart",
-			       function() f.mover:StartMoving() end)
+			       function(self) self:StartMoving() end)
       f.mover:SetScript("OnDragStop",
-			       function()
+			       function(self)
 				  mod:SavePosition(f)
-				  f.mover:StopMovingOrSizing() end)
+				  self:StopMovingOrSizing() end)
       f.mover:SetScript("OnClick",
 			       function(frame,button)
 				  mod:ToggleLocked()
@@ -279,7 +292,7 @@ function mod:OnInitialize()
       if bdb.binLabel then
 	 f.button.buttonBinText = "Bin #"..id
       end
-      if bdb.hidden then f:Hide() else f:Show() end
+      f:ShowOrHide()
       f.mover:Hide()
       f.mover.text:Hide()
    end
@@ -410,21 +423,38 @@ function mod:OnEnable()
    -- Seems to fire when resizing the window or switching from fullscreen to
    -- windowed mode but not at other times
    self:RegisterEvent("UPDATE_FLOATING_CHAT_WINDOWS","RecalculateSizes")
+   self:RegisterEvent("PLAYER_REGEN_ENABLED")
+   self:RegisterEvent("PLAYER_REGEN_DISABLED")
 end
 
 function mod:OnDisable()
    self:UnregisterEvent("UPDATE_FLOATING_CHAT_WINDOWS")
+   self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+   self:UnregisterEvent("PLAYER_REGEN_DISABLED")
    LDB.UnregisterAllCallbacks(self)
 
-   for _,bin in ipairs(bins) do
+   for id,bin in ipairs(bins) do
       bin:Hide()
+      if binTimers[id] then
+	 self:CancelTimer(binTimers[id], true)
+	 binTimers[id] = nil
+      end
+
    end
 end
 
 function mod:PLAYER_REGEN_ENABLED()
+   playerInCombat = false
+   for id,bin in ipairs(bins) do
+      bin:ShowOrHide(db.bins[id].visibility == "inCombat")
+   end
 end
 
 function mod:PLAYER_REGEN_DISABLED()
+   playerInCombat = true
+   for id,bin in ipairs(bins) do
+      bin:ShowOrHide(db.bins[id].visibility == "noCombat")
+   end
 end
 
 do
@@ -501,16 +531,15 @@ function mod:OnProfileChanged(event, newdb)
 end
 
 function mod:ToggleLocked()
+   unlockFrames = not unlockFrames
    for id,bin in ipairs(bins) do 
-      if unlockFrames then
+      if not unlockFrames then
 	 local s = bin:GetEffectiveScale()
 	 bin.mover:RegisterForDrag()
 	 bin.mover:Hide()
 	 bin.mover.text:Hide()
 	 mod:LoadPosition(bin)
-	 if db.bins[id].hidden then
-	    bin:Hide()
-	 end
+	 bin:ShowOrHide()
       else
 	 bin.mover:ClearAllPoints()
 	 bin.mover:SetWidth(bin:GetWidth())
@@ -522,10 +551,9 @@ function mod:ToggleLocked()
 	 bin:SetPoint("TOPLEFT", bin.mover)
 	 bin.mover:Show()
 	 bin.mover.text:Show()
-	 bin:Show()
+	 bin:ShowOrHide()
       end
    end
-   unlockFrames = not unlockFrames
 end
 
 function mod:ToggleButtonLock()
@@ -551,7 +579,9 @@ function mod:ToggleButtonLock()
 	 frame:SetScript("OnLeave", frame._onleave or LDB_OnLeave)
 	 frame._onenter = nil frame._onleave = nil
       end
-
+   end
+   for _,bin in ipairs(bins) do
+      bin:ShowOrHide()
    end
 end
    
@@ -656,6 +686,11 @@ options = {
 		  desc = "Hide or show the button bin icon for this bin.",
 		  order = 30
 	       },
+	       headerLabels = {
+		  type = "header",
+		  name = "Labels",
+		  order = 35,
+	       },
 	       showLabels = {
 		  width = "full",
 		  type = "toggle",
@@ -685,6 +720,31 @@ options = {
 		  order = 70,
 		  disabled = "DisableLabelOption",
 	       },
+	       headerVisibility = {
+		  type = "header",
+		  name = "Visibility",
+		  order = 100,
+	       },
+	       visibility = {
+		  type = "select",
+		  name = "Bin visibility",
+		  values = {
+		     always = "Always visible",
+		     mouse = "Show on mouseover",
+		     inCombat = "Show only in combat",
+		     noCombat = "Hide during combat"
+		  },
+		  order = 110,
+	       },
+	       hideTimeout = {
+		  type = "range",
+		  name = "Seconds until hidden",
+		  desc = "Wait this many seconds until hiding the bin after the condition is met (in combat etc).",
+		  disabled = "DisableHideOption",
+		  min = 0, max = 15, step = 0.1,
+		  order = 120,
+	       },
+
 	    }
 	 },
 	 orientation = {
@@ -848,9 +908,43 @@ function mod:SetOption(info, val)
    end
 end
 
+function binMetaTable:ShowOrHide(timer)
+   local bdb = db.bins[self.binId]
+   if timer and bdb.hideTimeout > 0 then
+      if binTimers[self.binId] then
+	 mod:CancelTimer(binTimers[self.binId], true)
+      end
+      binTimers[self.binId] = mod:ScheduleTimer(binMetaTable.ShowOrHide, bdb.hideTimeout, self)
+   else
+      self:SetAlpha(1.0)
+      if unlockButtons or unlockFrames then
+	 self:Show()
+      elseif bdb.hidden then
+	 self:Hide()
+      elseif bdb.visibility == "noCombat" then
+	 if playerInCombat then self:Hide() else self:Show() end
+      elseif bdb.visibility == "inCombat" then
+	 if playerInCombat then self:Show() else self:Hide() end
+      elseif bdb.visibility == "mouse" then
+	 self:Show()
+	 if not self._isMouseOver then
+	    self:SetAlpha(0.0)
+	 end
+      else
+	 self:Show()
+      end
+   end
+   binTimers[self.binId] = nil
+end
+
 function binMetaTable:DisableLabelOption(info)
    local bdb = db.bins[self.binId]
    return not bdb.showLabels
+end
+
+function binMetaTable:DisableHideOption(info)
+   local bdb = db.bins[self.binId]
+   return bdb.visibility == "always"
 end
 
 function binMetaTable:UsingGlobalScale(info)
@@ -872,8 +966,8 @@ function binMetaTable:SetOption(info, val)
    if var == "scale" then
       self:SetScale(val)
       self.mover:SetScale(self:GetScale())
-   elseif var == "hidden" then
-      if bdb.hidden then self:Hide() else self:Show() end
+   elseif var == "hidden" or var == "visibility" then
+      self:ShowOrHide()
    elseif var == "binLabel" then
       if val then
 	 self.button.buttonBinText = "Bin #"..self.binId
@@ -882,8 +976,7 @@ function binMetaTable:SetOption(info, val)
       end
       self.button:resizeWindow()
       return
-   end
-   
+   end   
    mod:ReloadFrame(self) 
 end
 
@@ -1029,7 +1122,7 @@ function mod:SortFrames(bin)
    bin:SetHeight(height)
    bin.mover:SetWidth(bin:GetWidth())
    bin.mover:SetHeight(bin:GetHeight())
-   if bdb.hidden then bin:Hide() else bin:Show() end
+   bin:ShowOrHide()
 end
 
 
