@@ -88,7 +88,9 @@ local defaults = {
 	    hideEmpty = true,
 	    sortedButtons = {},
 	    newlyAdded = true,
-	    hidden = true
+	    hidden = true,
+	    labelOnMouse = false,
+	    binLabel = true,
 	 }
       },
    }
@@ -169,11 +171,14 @@ local function LDB_OnEnter(self, now)
    if obj.OnEnter then
       obj.OnEnter(self)
    end
---   resizeBin(buttonBin)
+   self._isMouseOver = true
+   self:resizeWindow()
 end
 
 local function LDB_OnLeave(self)
    local obj = self.obj
+   self._isMouseOver = false
+   self:resizeWindow()
    if not obj then return end
    if mod:MouseIsOver(GameTooltip) and (obj.tooltiptext or obj.OnTooltipShow) then return end	
 
@@ -634,32 +639,46 @@ options = {
 		  type = "toggle",
 		  name = "Hide blocks without icons",
 		  desc = "This will hide all addons that lack icons instead of showing an empty space.",
+		  width = "full",
 		  order = 10,
 	       },
 	       hidden = {
 		  type = "toggle",
 		  name = "Hide button bin",
+		  width = "full",
 		  desc = "Hide or show this bin.",
 		  order = 20,
 	       },
 	       hideBinIcon = {
+		  width = "full",
 		  type = "toggle",
 		  name = "Hide button bin icon",
 		  desc = "Hide or show the button bin icon for this bin.",
 		  order = 30
 	       },
 	       showLabels = {
+		  width = "full",
 		  type = "toggle",
 		  name = "Show labels",
 		  order = 40,
 	       },
 	       binLabel = {
 		  type = "toggle",
+		  width = "full",
 		  name = "Show Button Bin label",
 		  order = 50,
 		  disabled = "DisableLabelOption",
 	       },
+	       labelOnMouse = {
+		  width = "full",
+		  type = "toggle",
+		  name = "Show label only on mouse over",
+		  desc = "Don't show any labels unless the cursor is hovering over the button.",
+		  order = 55,
+		  disabled = "DisableLabelOption",
+	       },
 	       shortLabels = {
+		  width = "full",
 		  type = "toggle",
 		  name = "Show short text",
 		  desc = "Only show the value text, not the labels.",
@@ -1136,16 +1155,20 @@ local function Frame_ResizeFrame(self)
    self:Show()
 
    local width
-   if bdb.showLabels then
+   if bdb.showLabels and (not bdb.labelOnMouse or self._isMouseOver) then
       if bdb.shortLabels then
 	 self.label:SetText(self.shortButtonText or self.buttonBinText)
       else
 	 self.label:SetText(self.buttonBinText or self.shortButtonText)
       end
       width = self.label:GetStringWidth()
-      self.label:SetWidth(width)
-      self.label:Show()
-      width = width + sdb.size + 6
+      if width > 0 then
+	 self.label:SetWidth(width)
+	 self.label:Show()
+	 width = width + sdb.size + 6
+      else
+	 width = sdb.size
+      end
    else
       self.label:Hide()
       width = sdb.size
