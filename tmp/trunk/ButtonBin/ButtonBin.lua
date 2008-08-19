@@ -5,7 +5,7 @@ ButtonBin - A displayer for LibDataBroker compatible addons
 Code inspired by and copied from Fortress by Borlox
 **********************************************************************
 ]]
-ButtonBin = LibStub("AceAddon-3.0"):NewAddon("ButtonBin", "AceConsole-3.0") -- , "AceEvent-3.0", "AceTimer-3.0", "AceConsole-3.0")
+ButtonBin = LibStub("AceAddon-3.0"):NewAddon("ButtonBin", "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0" )
 
 -- Silently fail embedding if it doesn't exist
 local LibStub = LibStub
@@ -69,17 +69,23 @@ local defaults = {
 	    enabled = true
 	 },
       },
+      size = 24,
+      scale = 1.0,
+      width  = 10,
+      hpadding = 0.5,
+      vpadding = 0.5,
       bins = {
 	 ['*'] = {
-	    collapsed = false,
 	    size = 24,
 	    scale = 1.0,
 	    width  = 10,
+	    hpadding = 0.5,
+	    vpadding = 0.5,
+	    collapsed = false,
+	    useGlobal = true,
 	    flipx = false,
 	    flipy = false,
 	    hideEmpty = true,
-	    hpadding = 0.5,
-	    vpadding = 0.5,
 	    sortedButtons = {},
 	    newlyAdded = true,
 	    hidden = true
@@ -190,38 +196,6 @@ function mod:OnInitialize()
 
    options.profile = DBOpt:GetOptionsTable(self.db)
 
-   if db.size or db.scale or db.posx then
-      -- Create a new bin based on the old stored data
-      for id,name in pairs(db.sortedButtons) do
-	 if name == "ButtonBin" then
-	    tremove(db.sortedButtons, id)
-	    break
-	 end
-      end
-      db.bins[1] =  {
-	 collapsed = db.collapsed,
-	 size = db.size, 
-	 scale = db.scale,
-	 posx = db.posx,
-	 posy = db.posy,
-	 anchor = db.anchor,
-	 width = db.width, 
-	 flipx = db.flipx, 
-	 flipy = db.flipy, 
-	 hideEmpty = db.hideEmpty, 
-	 hpadding = db.hpadding, 
-	 vpadding = db.vpadding, 
-	 sortedButtons = db.sortedButtons,
-      }
-      -- Reset old data
-      db.posx = nil db.posy = nil db.anchor = nil
-      db.collapsed = nil db.size = nil
-      db.scale = nil     db.width = nil
-      db.flipx = nil     db.flipy = nil
-      db.hideEmpty = nil db.hpadding = nil
-      db.vpadding = nil  db.sortedButtons = nil
-   end
-
    -- Initialize 5 bins, hiding all but the first
    for id=1,5 do
       local bin = db.bins[id]
@@ -246,15 +220,14 @@ function mod:OnInitialize()
       "|cffffff00Right click|r to open the Button Bin configuration.\n"
 
    for id,bdb in pairs(db.bins) do
-      local f = CreateFrame("Frame", "ButtonBinParent", UIParent)
-      local bdb = db.bins[id]
+      local f = setmetatable(CreateFrame("Frame", "ButtonBinParent:"..id, UIParent), mod.binMetaTable_mt)
+      local sdb
+      if bdb.useGlobal then sdb = db else sdb = bdb end
       bins[id] = f
       f.binId = id
       f:EnableMouse(true)
       f:SetClampedToScreen(true)
-      f:SetWidth(300)
-      f:SetHeight(bdb.size)
-      f:SetScale(bdb.scale)
+      f:SetScale(sdb.scale)
       f.mover = CreateFrame("Button", "ButtonBinMover", UIParent)
       f.mover:EnableMouse(true)
       f.mover:SetMovable(true)
@@ -429,9 +402,13 @@ function mod:OnEnable()
    for _,bin in ipairs(bins) do
       self:SortFrames(bin)
    end
+   -- Seems to fire when resizing the window or switching from fullscreen to
+   -- windowed mode but not at other times
+   self:RegisterEvent("UPDATE_FLOATING_CHAT_WINDOWS","RecalculateSizes")
 end
 
 function mod:OnDisable()
+   self:UnregisterEvent("UPDATE_FLOATING_CHAT_WINDOWS")
    LDB.UnregisterAllCallbacks(self)
 
    for _,bin in ipairs(bins) do
@@ -443,6 +420,19 @@ function mod:PLAYER_REGEN_ENABLED()
 end
 
 function mod:PLAYER_REGEN_DISABLED()
+end
+
+do
+   local timer 
+   function Low_RecalculateSizes()
+      for _,bin in ipairs(bins) do
+	 mod:SortFrames(bin)
+      end
+   end
+   function mod:RecalculateSizes()
+      if timer then mod:CancelTimer(timer, true) timer = nil end
+      timer = mod:ScheduleTimer(Low_RecalculateSizes, 1)
+   end
 end
 
 function mod:ApplyProfile()
@@ -572,6 +562,9 @@ options = {
       name = "Global Settings",
       order = 4,
       childGroups = "tab",
+      handler = mod,
+      get = "GetOption", 
+      set = "SetOption", 
       args = {
 	 toggle ={ 
 	    type = "toggle",
@@ -588,6 +581,41 @@ options = {
 	    get = function() return not unlockButtons end,
 	    set = function() mod:ToggleButtonLock() end
 	 },
+	 globalScale = {
+	    type = "group",
+	    name = "Scale and Size",
+	    args = {
+	       hpadding = {
+		  type = "range",
+		  name = "Horizontal Button Padding",
+		  width = "full",
+		  min = 0, max = 50, step = 0.1,
+		  order = 130,
+	       }, 
+	       vpadding = {
+		  type = "range",
+		  name = "Vertical Button Padding",
+		  width = "full",
+		  min = 0, max = 50, step = 0.1,
+		  order = 140,
+	       },
+	       size = {
+		  type = "range",
+		  name = "Button Size",
+		  width = "full",
+		  min = 5, max = 50, step = 1,
+		  order = 160,
+	       },
+	       scale = {
+		  type = "range",
+		  name = "Bin Scale",
+		  width = "full",
+		  min = 0.01, max = 5, step = 0.05,
+		  order = 170,
+	       },
+	    }
+
+	 }
       }
    },
    binConfig = {
@@ -606,21 +634,18 @@ options = {
 		  type = "toggle",
 		  name = "Hide blocks without icons",
 		  desc = "This will hide all addons that lack icons instead of showing an empty space.",
-		  width = "full",
 		  order = 10,
 	       },
 	       hidden = {
 		  type = "toggle",
 		  name = "Hide button bin",
 		  desc = "Hide or show this bin.",
-		  width = "full",
 		  order = 20,
 	       },
 	       hideBinIcon = {
 		  type = "toggle",
 		  name = "Hide button bin icon",
 		  desc = "Hide or show the button bin icon for this bin.",
-		  width = "full",
 		  order = 30
 	       },
 	       showLabels = {
@@ -671,30 +696,43 @@ options = {
 	    type = "group",
 	    name = "Padding and Sizing",
 	    args = {
+	       useGlobal = {
+		  type = "toggle",
+		  name = "Use Global Settings",
+		  desc = "Use global settings for scale, button size and padding.",
+	       },
 	       hpadding = {
 		  type = "range",
-		  name = "Horizontal Button Padding",
+		  name = "Horizontal Padding",
+		  desc = "Horizontal space between each data block.",
 		  width = "full",
+		  hidden = "UsingGlobalScale",
 		  min = 0, max = 50, step = 0.1,
 		  order = 130,
 	       }, 
 	       vpadding = {
 		  type = "range",
-		  name = "Vertical Button Padding",
+		  hidden = "UsingGlobalScale",
+		  name = "Vertical Padding",
+		  desc = "Space between data block rows.",
 		  width = "full",
 		  min = 0, max = 50, step = 0.1,
 		  order = 140,
 	       },
 	       size = {
-		  type = "range",
-		  name = "Button Size",
+		  type = "range",		  
+		  name = "Icon Size",
+		  hidden = "UsingGlobalScale",
+		  desc = "Icon size in pixels.",
 		  width = "full",
 		  min = 5, max = 50, step = 1,
 		  order = 160,
 	       },
 	       scale = {
 		  type = "range",
+		  hidden = "UsingGlobalScale",
 		  name = "Bin Scale",
+		  desc = "Relative scale of the bin and all contents.",
 		  width = "full",
 		  min = 0.01, max = 5, step = 0.05,
 		  order = 170,
@@ -702,8 +740,9 @@ options = {
 	       width = {
 		  type = "range",
 		  name = "Bin Width",
+		  desc = "Maximum number of buttons to place per row.",
 		  width = "full",
-		  min = 1, max = 100, step = 1, 
+		  min = 1, max = 200, step = 1, 
 		  order = 180,
 	       },
 	    }
@@ -774,18 +813,39 @@ function mod:OptReg(optname, tbl, dispname, cmd)
       end
    end
 end
-function mod:DisableLabelOption(info)
+function mod:GetOption(info)
+   return db[info[#info]]
+end
+
+local barFrameMT = {__index = CreateFrame("Frame") }
+local binMetaTable =  setmetatable({}, barFrameMT)
+mod.binMetaTable_mt = {__index = binMetaTable }
+
+function mod:SetOption(info, val)
+   local var = info[#info]
+   db[var] = val
+   for _,bin in pairs(bins) do
+      mod:ReloadFrame(bin)
+   end
+end
+
+function binMetaTable:DisableLabelOption(info)
    local bdb = db.bins[self.binId]
    return not bdb.showLabels
 end
 
-function mod:GetBinOption(info)
+function binMetaTable:UsingGlobalScale(info)
+   local bdb = db.bins[self.binId]
+   return bdb.useGlobal
+end
+
+function binMetaTable:GetOption(info)
    local bdb = db.bins[self.binId]
    local var = info[#info]
    return bdb[var]
 end
 
-function mod:SetBinOption(info, val)
+function binMetaTable:SetOption(info, val)
    local bdb = db.bins[self.binId]
    local var = info[#info]
 
@@ -816,11 +876,6 @@ function mod:AddBinOptions(id)
    end
    bin.name = bin.name .. id
    bin.handler = bins[id]
-   if not bins[id].GetOption then
-      bins[id].GetOption = mod.GetBinOption
-      bins[id].SetOption = mod.SetBinOption
-      bins[id].DisableLabelOption = mod.DisableLabelOption
-   end
    mod.binopts[id] = mod:OptReg(": "..bin.name, bin, bin.name)
    
 end
@@ -854,9 +909,18 @@ function mod:ToggleCollapsed(frame)
    mod:SortFrames(bin)
 end
 
+function mod:GetBinSettings(bin)
+   local bdb = db.bins[bin.binId]
+   if bdb.useGlobal then
+      return bdb, db
+   else
+      return bdb, bdb
+   end
+end
 
 function mod:SortFrames(bin)
-   local bdb = db.bins[bin.binId]
+   local bdb,sdb = mod:GetBinSettings(bin)
+   local sizeOptions
    local xoffset = 0
    local width = 0
    local height = 0
@@ -871,6 +935,10 @@ function mod:SortFrames(bin)
       end 
       sorted = {}
    end   
+
+   if sdb.scale ~= bin:GetScale() then
+      bin:SetScale(sdb.scale)
+   end
    
    local count = 1
    local previousFrame
@@ -889,8 +957,8 @@ function mod:SortFrames(bin)
       xmulti = 1
    end
 
-   local hpadding = (bdb.hpadding or 0)
-   local vpadding = (bdb.size + (bdb.vpadding or 0))
+   local hpadding = (sdb.hpadding or 0)
+   local vpadding = (sdb.size + (sdb.vpadding or 0))
    if not bdb.hideBinIcon then
       previousFrame = bin.button
       previousFrame:resizeWindow()
@@ -1048,7 +1116,7 @@ local function Button_OnDragStop()
 end
 
 local function Frame_ResizeFrame(self)
-   local bdb = db.bins[self.db.bin]
+   local bdb,sdb = mod:GetBinSettings(self:GetParent())
 
    self.icon:ClearAllPoints()
    self.label:ClearAllPoints()
@@ -1062,8 +1130,8 @@ local function Frame_ResizeFrame(self)
    end
 
 
-   self.icon:SetWidth(bdb.size)
-   self.icon:SetHeight(bdb.size)
+   self.icon:SetWidth(sdb.size)
+   self.icon:SetHeight(sdb.size)
 
    self:Show()
 
@@ -1074,16 +1142,16 @@ local function Frame_ResizeFrame(self)
       else
 	 self.label:SetText(self.buttonBinText or self.shortButtonText)
       end
-      self.label:Show()
       width = self.label:GetStringWidth()
       self.label:SetWidth(width)
-      width = width + bdb.size + 6
+      self.label:Show()
+      width = width + sdb.size + 6
    else
       self.label:Hide()
-      width = bdb.size
+      width = sdb.size
    end
    self:SetWidth(width)
-   self:SetHeight(bdb.size)
+   self:SetHeight(sdb.size)
 end
 
 function mod:GetFrame()
