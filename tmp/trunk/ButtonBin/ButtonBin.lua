@@ -15,6 +15,7 @@ local BB_DEBUG = false
 
 local C = LibStub("AceConfigDialog-3.0")
 local DBOpt = LibStub("AceDBOptions-3.0")
+local media = LibStub("LibSharedMedia-3.0")
 local mod = ButtonBin
 
 local fmt = string.format
@@ -79,6 +80,11 @@ local defaults = {
       vpadding = 0.5,
       bins = {
 	 ['*'] = {
+	    colors = {
+	       backgroundColor = { 0, 0, 0, 0},
+	       borderColor = { 0, 0, 0, 0 },
+	    },
+	    edgeSize = 10,
 	    size = 24,
 	    scale = 1.0,
 	    width  = 10,
@@ -96,6 +102,8 @@ local defaults = {
 	    binLabel = true,
 	    visibility = "always",
 	    hideTimeout = 2,
+	    border = "None",
+	    background = "Solid",
 	 }
       },
    }
@@ -217,8 +225,8 @@ function mod:OnInitialize()
       local bin = db.bins[id]
       if bin.newlyAdded then
 	 if id == 1 then bin.hidden = false end
-	 bin.newlyAdded = false
       end
+      bin.newlyAdded = nil
    end
 
    local bgFrame = {
@@ -244,6 +252,7 @@ function mod:OnInitialize()
       f:EnableMouse(true)
       f:SetClampedToScreen(true)
       f:SetScale(sdb.scale)
+      f:FixBackdrop()
       f:SetScript("OnEnter", function(self) self._isMouseOver = true self:ShowOrHide() end)
       f:SetScript("OnLeave", function(self) self._isMouseOver = nil  self:ShowOrHide(true) end)
       f.mover = CreateFrame("Button", "ButtonBinMover", UIParent)
@@ -525,7 +534,6 @@ end
 function mod:OnProfileChanged(event, newdb)
    if event ~= "OnProfileDeleted" then
       db = self.db.profile
-      if not db.colors then db.colors = colors end -- set default if needed
       self:ApplyProfile()
    end
 end
@@ -747,6 +755,46 @@ options = {
 
 	    }
 	 },
+	 lookandfeel = {
+	    type = "group",
+	    name = "Look & Feel",
+	    args = {
+	       background = {
+		  type = 'select',
+		  dialogControl = 'LSM30_Background',
+		  name = 'Background Texture',
+		  desc = 'The background texture used for the bin.',
+		  values = AceGUIWidgetLSMlists.background, 
+	       },
+	       border = {
+		  type = 'select',
+		  dialogControl = 'LSM30_Border',
+		  name = 'Border texture',
+		  desc = 'The border texture used for the bin.',
+		  values = AceGUIWidgetLSMlists.border, 
+	       },
+	       backgroundColor = {
+		  type = "color",
+		  name = "Background Color",
+		  hasAlpha = true,
+		  set = "SetColorOpt",
+		  get = "GetColorOpt",
+	       },
+	       borderColor = {
+		  type = "color",
+		  name = "Border Color",
+		  hasAlpha = true,
+		  set = "SetColorOpt",
+		  get = "GetColorOpt",
+	       },
+	       edgeSize = {
+		  type = "range",
+		  name = "Edge Size",
+		  desc = "Width of the border.",
+		  min = 1, max = 50, step = 0.1,
+	       },
+	    },
+	 },
 	 orientation = {
 	    type = "group",
 	    name = "Orientation",
@@ -896,16 +944,45 @@ function mod:GetOption(info)
    return db[info[#info]]
 end
 
-local barFrameMT = {__index = CreateFrame("Frame") }
-local binMetaTable =  setmetatable({}, barFrameMT)
-mod.binMetaTable_mt = {__index = binMetaTable }
-
 function mod:SetOption(info, val)
    local var = info[#info]
    db[var] = val
    for _,bin in pairs(bins) do
       mod:ReloadFrame(bin)
    end
+end
+
+local barFrameMT = {__index = CreateFrame("Frame") }
+local binMetaTable =  setmetatable({}, barFrameMT)
+mod.binMetaTable_mt = {__index = binMetaTable }
+
+
+function binMetaTable:FixBackdrop()   
+   local bdb = db.bins[self.binId]
+   local bgFrame = self:GetBackdrop()
+   if not bgFrame then
+      bgFrame = {
+	 insets = {left = 1, right = 1, top = 1, bottom = 1}
+      }
+   end
+
+   local edge = 0
+   if bdb.border ~= "None" then
+      edge = bdb.edgeSize
+   end
+   bgFrame.edgeSize = edge
+   edge = edge / 4
+   bgFrame.insets.left   = edge
+   bgFrame.insets.right  = edge
+   bgFrame.insets.top    = edge
+   bgFrame.insets.bottom = edge
+
+
+   bgFrame.edgeFile = media:Fetch("border", bdb.border)
+   bgFrame.bgFile = media:Fetch("background", bdb.background)
+   self:SetBackdrop(bgFrame)
+   self:SetBackdropColor(unpack(bdb.colors.backgroundColor))
+   self:SetBackdropBorderColor(unpack(bdb.colors.borderColor))
 end
 
 function binMetaTable:ShowOrHide(timer)
@@ -935,6 +1012,22 @@ function binMetaTable:ShowOrHide(timer)
       end
    end
    binTimers[self.binId] = nil
+end
+
+function binMetaTable:SetColorOpt(arg, r, g, b, a)
+   local bdb = db.bins[self.binId]
+   local color = arg[#arg]
+   bdb.colors[color][1] = r
+   bdb.colors[color][2] = g
+   bdb.colors[color][3] = b
+   bdb.colors[color][4] = a
+   self:FixBackdrop()
+end
+
+function binMetaTable:GetColorOpt(arg)
+   local bdb = db.bins[self.binId]
+   local color = arg[#arg]
+   return unpack(bdb.colors[color])
 end
 
 function binMetaTable:DisableLabelOption(info)
@@ -976,6 +1069,8 @@ function binMetaTable:SetOption(info, val)
       end
       self.button:resizeWindow()
       return
+   elseif var == "background" or var == "border" or var == "edgeSize"then
+      self:FixBackdrop()
    end   
    mod:ReloadFrame(self) 
 end
@@ -1068,16 +1163,20 @@ function mod:SortFrames(bin)
       anchor = anchor .. "LEFT"
       xmulti = 1
    end
-
+   local inset = 0
+   if bdb.border ~= "None" then
+      inset = bdb.edgeSize / 2
+   end
+   
    local hpadding = (sdb.hpadding or 0)
    local vpadding = (sdb.size + (sdb.vpadding or 0))
    if not bdb.hideBinIcon then
       previousFrame = bin.button
       previousFrame:resizeWindow()
       previousFrame:ClearAllPoints()
-      previousFrame:SetPoint(anchor, bin, anchor, 0, 0)
-      width = previousFrame:GetWidth()
-      height = vpadding
+      previousFrame:SetPoint(anchor, bin, anchor, xmulti*inset, ymulti*inset)
+      width = previousFrame:GetWidth() + inset
+      height = vpadding + inset
       if bdb.width > 1 then
 	 xoffset = hpadding + width
 	 count = 2
@@ -1087,6 +1186,8 @@ function mod:SortFrames(bin)
    else
       bin.button:ClearAllPoints()
       bin.button:Hide()
+      width = inset
+      height = inset
    end
    
    for _,name in ipairs(sorted) do
@@ -1099,7 +1200,7 @@ function mod:SortFrames(bin)
 	    if previousFrame then
 	       frame:SetPoint(anchor, previousFrame, otheranchor, xmulti*hpadding, 0)
 	    else
-	       frame:SetPoint(anchor, bin, anchor, 0, ymulti*(height-vpadding))
+	       frame:SetPoint(anchor, bin, anchor, xmulti*inset, ymulti*(height-vpadding))
 	    end
 	    count = count + 1
 	    xoffset = xoffset + hpadding + frame:GetWidth()
@@ -1118,8 +1219,8 @@ function mod:SortFrames(bin)
 	 end
       end
    end
-   bin:SetWidth(width)
-   bin:SetHeight(height)
+   bin:SetWidth(width + inset)
+   bin:SetHeight(height + inset)
    bin.mover:SetWidth(bin:GetWidth())
    bin.mover:SetHeight(bin:GetHeight())
    bin:ShowOrHide()
@@ -1265,6 +1366,13 @@ local function Frame_ResizeFrame(self)
    else
       self.label:Hide()
       width = sdb.size
+   end
+   if bdb.labelOnMouse then
+      local oldWidth = self:GetWidth(self)
+      if oldWidth ~= width then
+	 local bin = self:GetParent()
+	 bin:SetWidth(bin:GetWidth() - oldWidth + width)
+      end
    end
    self:SetWidth(width)
    self:SetHeight(sdb.size)
