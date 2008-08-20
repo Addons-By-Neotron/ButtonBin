@@ -7,8 +7,8 @@
 ## X-Category: Interface Enhancements
 ## X-eMail: neotron@gmail.com
 
-## OptionalDeps: Ace3
-## X-Embeds: Ace3
+## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
+## X-Embeds: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: ButtonBinDB
 
 # Library files
