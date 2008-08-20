@@ -104,6 +104,8 @@ local defaults = {
 	    hideTimeout = 2,
 	    border = "None",
 	    background = "Solid",
+	    fontsize = 12,
+	    font = "Friz Quadrata TT",
 	 }
       },
    }
@@ -764,6 +766,7 @@ options = {
 		  dialogControl = 'LSM30_Background',
 		  name = 'Background Texture',
 		  desc = 'The background texture used for the bin.',
+		  order = 20,
 		  values = AceGUIWidgetLSMlists.background, 
 	       },
 	       border = {
@@ -771,6 +774,7 @@ options = {
 		  dialogControl = 'LSM30_Border',
 		  name = 'Border texture',
 		  desc = 'The border texture used for the bin.',
+		  order = 40,
 		  values = AceGUIWidgetLSMlists.border, 
 	       },
 	       backgroundColor = {
@@ -779,6 +783,7 @@ options = {
 		  hasAlpha = true,
 		  set = "SetColorOpt",
 		  get = "GetColorOpt",
+		  order = 30,
 	       },
 	       borderColor = {
 		  type = "color",
@@ -786,12 +791,28 @@ options = {
 		  hasAlpha = true,
 		  set = "SetColorOpt",
 		  get = "GetColorOpt",
+		  order = 50,
 	       },
 	       edgeSize = {
 		  type = "range",
 		  name = "Edge Size",
 		  desc = "Width of the border.",
 		  min = 1, max = 50, step = 0.1,
+	       },
+	       font = {
+		  type = 'select',
+		  dialogControl = 'LSM30_Font',
+		  name = 'Font',
+		  desc = 'Font used on the bars',
+		  values = AceGUIWidgetLSMlists.font, 
+		  order = 1,
+	       },
+	       fontsize = {
+		  order = 1, 
+		  type = "range",
+		  name = "Font size",
+		  min = 1, max = 30, step = 1,
+		  order = 2
 	       },
 	    },
 	 },
@@ -1350,6 +1371,9 @@ local function Frame_ResizeFrame(self)
 
    local width
    if bdb.showLabels and (not bdb.labelOnMouse or self._isMouseOver) then
+      if bdb.font and bdb.fontsize then
+	 self.label:SetFont(media:Fetch("font", bdb.font), bdb.fontsize)
+      end
       if bdb.shortLabels then
 	 self.label:SetText(self.shortButtonText or self.buttonBinText)
       else
