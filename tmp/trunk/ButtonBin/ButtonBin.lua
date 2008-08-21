@@ -105,6 +105,8 @@ local defaults = {
 	    border = "None",
 	    background = "Solid",
 	    fontsize = 12,
+	    pixelwidth = 0,
+	    clampToScreen = true,
 	    font = "Friz Quadrata TT",
 	 }
       },
@@ -252,7 +254,7 @@ function mod:OnInitialize()
       bins[id] = f
       f.binId = id
       f:EnableMouse(true)
-      f:SetClampedToScreen(true)
+      f:SetClampedToScreen(bdb.clampToScreen)
       f:SetScale(sdb.scale)
       f:FixBackdrop()
       f:SetScript("OnEnter", function(self) self._isMouseOver = true self:ShowOrHide() end)
@@ -262,7 +264,7 @@ function mod:OnInitialize()
       f.mover:SetMovable(true)
       f.mover:SetBackdrop(bgFrame)
       f.mover:SetBackdropColor(0, 1, 0);
-      f.mover:SetClampedToScreen(true)
+      f.mover:SetClampedToScreen(bdb.clampToScreen)
       f.mover:RegisterForClicks("AnyUp")
       f.mover:SetFrameStrata("HIGH")
       f.mover:SetFrameLevel(5)
@@ -356,7 +358,7 @@ local updaters = {
 	     end
 	     frame.buttonBinText = text
 	     frame.shortButtonText = shortText
-	     frame:resizeWindow()
+	     mod:SortFrames(frame:GetParent())
 	  end,	
    icon = function(frame, value, name)
 	     frame.icon:SetTexture(value)
@@ -682,6 +684,13 @@ options = {
 		  width = "full",
 		  order = 10,
 	       },
+	       clampToScreen = {
+		  type = "toggle",
+		  name = "Clamp to screen",
+		  desc = "Prevent the bin to be moved outside the boundaries of the screen.",
+		  width = "full",
+		  order = 10,
+	       },
 	       hidden = {
 		  type = "toggle",
 		  name = "Hide button bin",
@@ -710,7 +719,7 @@ options = {
 	       binLabel = {
 		  type = "toggle",
 		  width = "full",
-		  name = "Show Button Bin label",
+		  name = "Show button bin label",
 		  order = 50,
 		  disabled = "DisableLabelOption",
 	       },
@@ -764,7 +773,7 @@ options = {
 	       background = {
 		  type = 'select',
 		  dialogControl = 'LSM30_Background',
-		  name = 'Background Texture',
+		  name = 'Background texture',
 		  desc = 'The background texture used for the bin.',
 		  order = 20,
 		  values = AceGUIWidgetLSMlists.background, 
@@ -779,7 +788,7 @@ options = {
 	       },
 	       backgroundColor = {
 		  type = "color",
-		  name = "Background Color",
+		  name = "Background color",
 		  hasAlpha = true,
 		  set = "SetColorOpt",
 		  get = "GetColorOpt",
@@ -787,7 +796,7 @@ options = {
 	       },
 	       borderColor = {
 		  type = "color",
-		  name = "Border Color",
+		  name = "Border color",
 		  hasAlpha = true,
 		  set = "SetColorOpt",
 		  get = "GetColorOpt",
@@ -795,7 +804,7 @@ options = {
 	       },
 	       edgeSize = {
 		  type = "range",
-		  name = "Edge Size",
+		  name = "Edge size",
 		  desc = "Width of the border.",
 		  min = 1, max = 50, step = 0.1,
 	       },
@@ -846,12 +855,12 @@ options = {
 	    args = {
 	       useGlobal = {
 		  type = "toggle",
-		  name = "Use Global Settings",
+		  name = "Use global settings",
 		  desc = "Use global settings for scale, button size and padding.",
 	       },
 	       hpadding = {
 		  type = "range",
-		  name = "Horizontal Padding",
+		  name = "Horizontal padding",
 		  desc = "Horizontal space between each data block.",
 		  width = "full",
 		  hidden = "UsingGlobalScale",
@@ -861,7 +870,7 @@ options = {
 	       vpadding = {
 		  type = "range",
 		  hidden = "UsingGlobalScale",
-		  name = "Vertical Padding",
+		  name = "Vertical padding",
 		  desc = "Space between data block rows.",
 		  width = "full",
 		  min = 0, max = 50, step = 0.1,
@@ -869,7 +878,7 @@ options = {
 	       },
 	       size = {
 		  type = "range",		  
-		  name = "Icon Size",
+		  name = "Icon size",
 		  hidden = "UsingGlobalScale",
 		  desc = "Icon size in pixels.",
 		  width = "full",
@@ -879,7 +888,7 @@ options = {
 	       scale = {
 		  type = "range",
 		  hidden = "UsingGlobalScale",
-		  name = "Bin Scale",
+		  name = "Bin scale",
 		  desc = "Relative scale of the bin and all contents.",
 		  width = "full",
 		  min = 0.01, max = 5, step = 0.05,
@@ -887,10 +896,18 @@ options = {
 	       },
 	       width = {
 		  type = "range",
-		  name = "Bin Width",
-		  desc = "Maximum number of buttons to place per row.",
+		  name = "Max blocks per row",
+		  desc = "Maximum number of blocks to place per row. Note that regardless of this setting, you will never get a bin wider than the absolute width specified.",
 		  width = "full",
 		  min = 1, max = 200, step = 1, 
+		  order = 180,
+	       },
+	       pixelwidth = {
+		  type = "range",
+		  name = "Bin width",
+		  desc = "Width of the bin. If zero, the width is dynamically determined by the max blocks setting. If non-zero the row will wrap to avoid going beyond this width. Note that at minimum of one block always be placed on each row so for very small values, the bin might be wider than this setting.",
+		  width = "full",
+		  min = 0, max = 4000, step = 1, 
 		  order = 180,
 	       },
 	    }
@@ -1092,6 +1109,9 @@ function binMetaTable:SetOption(info, val)
       return
    elseif var == "background" or var == "border" or var == "edgeSize"then
       self:FixBackdrop()
+   elseif var == "clampToScreen" then
+      self:SetClampedToScreen(val)
+      self.mover:SetClampedToScreen(val)
    end   
    mod:ReloadFrame(self) 
 end
@@ -1175,6 +1195,7 @@ function mod:SortFrames(bin)
    
    if bdb.flipy then ymulti = 1 anchor = "BOTTOM" otheranchor = "BOTTOM"
    else ymulti = -1 anchor = "TOP" otheranchor = "TOP" end
+
    if bdb.flipx then
       anchor = anchor .. "RIGHT"
       otheranchor = otheranchor.. "LEFT"
@@ -1216,29 +1237,32 @@ function mod:SortFrames(bin)
       if frame then
 	 frame:ClearAllPoints()
 	 if (not bdb.hideEmpty or frame._has_texture) then
-	    if count == 1 then height = height + vpadding end
 	    frame:resizeWindow()
+	    local fwidth = frame:GetWidth()
+	    xoffset = xoffset + hpadding + fwidth
+	    if (bdb.width > 1 and bdb.pixelwidth > 0
+		and xoffset > bdb.pixelwidth )
+	       or count > bdb.width then
+	       previousFrame = nil
+	       xoffset = hpadding + fwidth
+	       count = 1
+	    end
+	    count = count + 1
+	    if xoffset > width then width =  xoffset end		    
 	    if previousFrame then
 	       frame:SetPoint(anchor, previousFrame, otheranchor, xmulti*hpadding, 0)
 	    else
+	       height = height + vpadding
 	       frame:SetPoint(anchor, bin, anchor, xmulti*inset, ymulti*(height-vpadding))
 	    end
-	    count = count + 1
-	    xoffset = xoffset + hpadding + frame:GetWidth()
-	    if xoffset > width then
-	       width =  xoffset
-	    end
-	    if count > bdb.width then
-	       previousFrame = nil
-	       xoffset = 0
-	       count = 1
-	    else
-	       previousFrame = frame
-	    end
+	    previousFrame = frame
 	 else
 	    frame:Hide()
 	 end
       end
+   end
+   if bdb.pixelwidth > width then
+      width = bdb.pixelwidth
    end
    bin:SetWidth(width + inset)
    bin:SetHeight(height + inset)
