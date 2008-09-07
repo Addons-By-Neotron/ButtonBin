@@ -503,11 +503,13 @@ end
 function mod:SavePosition(bin)
    local s = bin:GetEffectiveScale()
    local bdb = db.bins[bin.binId]
+   local top = bin:GetTop()
+   if not top then return end -- the bin is empty, and bin icon hidden
    if bdb.flipy then
       bdb.posy = bin:GetBottom() * s
       bdb.anchor = "BOTTOM"
    else
-      bdb.posy =  bin:GetTop() * s - UIParent:GetHeight()*UIParent:GetEffectiveScale() 
+      bdb.posy =  top * s - UIParent:GetHeight()*UIParent:GetEffectiveScale() 
       bdb.anchor = "TOP"
    end
    if bdb.flipx then
