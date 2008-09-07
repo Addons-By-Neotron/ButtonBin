@@ -598,9 +598,12 @@ function mod:ToggleButtonLock()
 end
    
 function mod:ReloadFrame(bin)
+   local wasUnlocked = unlockFrames
+   if wasUnlocked then mod:ToggleLocked() end
    mod:SortFrames(bin)
    mod:SavePosition(bin)
    mod:LoadPosition(bin)
+   if wasUnlocked then mod:ToggleLocked() end
 end
 
 options = { 
