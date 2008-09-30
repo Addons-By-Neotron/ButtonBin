@@ -1,0 +1,18 @@
+## Interface: 20400
+## Title: Button Bin
+## Notes: A bin for all your LibDataBroker buttons
+## Author: NeoTron
+## Version: 1.0
+## DefaultState: enabled
+## X-Category: Interface Enhancements
+## X-eMail: neotron@gmail.com
+
+## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
+## X-Embeds: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
+## SavedVariables: ButtonBinDB
+
+# Library files
+embeds.xml
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+ButtonBin.lua
+Locales.xml
