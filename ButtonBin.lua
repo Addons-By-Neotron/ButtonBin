@@ -18,6 +18,12 @@ local DBOpt = LibStub("AceDBOptions-3.0")
 local media = LibStub("LibSharedMedia-3.0")
 local mod = ButtonBin
 
+
+-- WotLK compatibility
+local OpenConfig = InterfaceOptionsFrame_OpenToFrame
+   or InterfaceOptionsFrame_OpenToCategory
+
+
 local fmt = string.format
 local tinsert = table.insert
 local tsort   = table.sort
@@ -336,7 +342,7 @@ function mod:LibDataBroker_DataObjectCreated(event, name, obj)
 end
 
 local updaters = {
-   text = function(frame, value, name, object)
+   text = function(frame, value, name, object, delay)
 	     local bdb = db.bins[frame.db.bin]
 	     local text, shortText
 	     if type(object.label) == "string" then
@@ -358,14 +364,23 @@ local updaters = {
 	     end
 	     frame.buttonBinText = text
 	     frame.shortButtonText = shortText
-	     mod:SortFrames(frame:GetParent())
+	     
+	     if not delay then
+		local isVisible = frame:IsVisible()
+		frame:resizeWindow()
+		if not isVisible then frame:Hide() end
+	     end
 	  end,	
-   icon = function(frame, value, name)
+   icon = function(frame, value, name, delay)
 	     frame.icon:SetTexture(value)
 	     local has_texture = not not value
 	     if has_texture ~= frame._has_texture then
 		frame._has_texture = has_texture
-		mod:SortFrames(frame:GetParent())
+		if not delay then
+		   local isVisible = frame:IsVisible()
+		   frame:resizeWindow()
+		   if not isVisible then frame:Hide() end
+		end
 	     end
 	  end,
    OnClick = function(frame, value)
@@ -405,7 +420,7 @@ function mod:EnableDataObject(name, obj)
    frame:SetScript("OnLeave", LDB_OnLeave)
    
    for key, func in pairs(updaters) do
-      func(frame, obj[key], name, obj) 
+      func(frame, obj[key], name, obj, true) 
    end	
 
    LDB.RegisterCallback(self, "LibDataBroker_AttributeChanged_"..name, "AttributeChanged")
@@ -537,9 +552,22 @@ function mod:LoadPosition(bin)
    end
 end
 
-function mod:OnProfileChanged(event, newdb)
+function mod:OnProfileChanged(event, newdb, src)
    if event ~= "OnProfileDeleted" then
       db = self.db.profile
+      if event == "OnProfileCopied" then
+	 -- This hack seems to be necessary for some reason
+	 -- no sure why but otherwise I get extra crap
+	 local srcBins = ButtonBinDB.profiles[src].bins
+	 for id,data in ipairs(srcBins) do
+	    local buttons = db.bins[id] and db.bins[id].sortedButtons
+	    if data.sortedButtons and buttons then
+	       for pos = #data.sortedButtons+1, #buttons do
+		  buttons[pos] = nil
+	       end
+	    end
+	 end
+      end
       self:ApplyProfile()
    end
 end
@@ -1147,10 +1175,10 @@ end
 function mod:ToggleConfigDialog(frame)
    if frame then 
       bin = frame:GetParent()
-      InterfaceOptionsFrame_OpenToFrame(mod.binopts[bin.binId])
+      OpenConfig(mod.binopts[bin.binId])
    else
-      InterfaceOptionsFrame_OpenToFrame(mod.profile)
-      InterfaceOptionsFrame_OpenToFrame(mod.main)
+      OpenConfig(mod.profile)
+      OpenConfig(mod.main)
    end
 end
 
@@ -1172,6 +1200,7 @@ function mod:GetBinSettings(bin)
 end
 
 function mod:SortFrames(bin)
+   --   mod:Print("Sorting frames for bin "..bin.binId)
    local bdb,sdb = mod:GetBinSettings(bin)
    local sizeOptions
    local xoffset = 0
@@ -1255,6 +1284,8 @@ function mod:SortFrames(bin)
 	    count = count + 1
 	    if xoffset > width then width =  xoffset end		    
 	    if previousFrame then
+--	       mod:Print(tostring(previousFrame).. ":"..previousFrame.name.." =>"..
+--			 tostring(frame) .. ":"..frame.name)
 	       frame:SetPoint(anchor, previousFrame, otheranchor, xmulti*hpadding, 0)
 	    else
 	       height = height + vpadding
