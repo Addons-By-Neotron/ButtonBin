@@ -366,9 +366,7 @@ local updaters = {
 	     frame.shortButtonText = shortText
 	     
 	     if not delay then
-		local isVisible = frame:IsVisible()
-		frame:resizeWindow()
-		if not isVisible then frame:Hide() end
+		frame:resizeWindow(true)
 	     end
 	  end,	
    icon = function(frame, value, name, delay)
@@ -377,9 +375,7 @@ local updaters = {
 	     if has_texture ~= frame._has_texture then
 		frame._has_texture = has_texture
 		if not delay then
-		   local isVisible = frame:IsVisible()
-		   frame:resizeWindow()
-		   if not isVisible then frame:Hide() end
+		   frame:resizeWindow(true)
 		end
 	     end
 	  end,
@@ -1409,7 +1405,7 @@ local function Button_OnDragStop()
    mod:SortFrames(bin)
 end
 
-local function Frame_ResizeFrame(self)
+local function Frame_ResizeWindow(self, dontShow)
    local bdb,sdb = mod:GetBinSettings(self:GetParent())
 
    self.icon:ClearAllPoints()
@@ -1427,7 +1423,7 @@ local function Frame_ResizeFrame(self)
    self.icon:SetWidth(sdb.size)
    self.icon:SetHeight(sdb.size)
 
-   self:Show()
+   if not dontShow then self:Show() end
 
    local width
    if bdb.showLabels and (not bdb.labelOnMouse or self._isMouseOver) then
@@ -1473,7 +1469,7 @@ function mod:GetFrame()
       frame:RegisterForClicks("AnyUp")
       frame.icon = frame:CreateTexture()
       frame.label = frame:CreateFontString(nil, nil, "GameFontNormal")
-      frame.resizeWindow = Frame_ResizeFrame
+      frame.resizeWindow = Frame_ResizeWindow
       frame:SetScript("OnDragStart", Button_OnDragStart)
       frame:SetScript("OnDragStop", Button_OnDragStop)
       
