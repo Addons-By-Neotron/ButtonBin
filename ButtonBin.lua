@@ -18,12 +18,6 @@ local DBOpt = LibStub("AceDBOptions-3.0")
 local media = LibStub("LibSharedMedia-3.0")
 local mod = ButtonBin
 
-
--- WotLK compatibility
-local OpenConfig = InterfaceOptionsFrame_OpenToFrame
-   or InterfaceOptionsFrame_OpenToCategory
-
-
 local fmt = string.format
 local tinsert = table.insert
 local tsort   = table.sort
@@ -1171,10 +1165,10 @@ end
 function mod:ToggleConfigDialog(frame)
    if frame then 
       bin = frame:GetParent()
-      OpenConfig(mod.binopts[bin.binId])
+      InterfaceOptionsFrame_OpenToCategory(mod.binopts[bin.binId])
    else
-      OpenConfig(mod.profile)
-      OpenConfig(mod.main)
+      InterfaceOptionsFrame_OpenToCategory(mod.profile)
+      InterfaceOptionsFrame_OpenToCategory(mod.main)
    end
 end
 
