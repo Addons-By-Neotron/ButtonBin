@@ -866,8 +866,8 @@ options = {
 	       },
 	       flipicons = {
 		  type = "toggle",
-		  name = "Icons on the left",
-		  desc = "If checked, icons will be placed to the left of the label.",
+		  name = "Icons on the right",
+		  desc = "If checked, icons will be placed to the right of the label.",
 		  order = 110,
 	       },
 	    }
