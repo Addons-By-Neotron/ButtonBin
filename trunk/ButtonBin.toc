@@ -1,4 +1,4 @@
-## Interface: 20400
+## Interface: 30000
 ## Title: Button Bin
 ## Notes: A bin for all your LibDataBroker buttons
 ## Author: NeoTron
