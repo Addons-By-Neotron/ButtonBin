@@ -728,6 +728,14 @@ options = {
 		  desc = "Hide or show the button bin icon for this bin.",
 		  order = 30
 	       },
+	       hideIcons = {
+		  width = "full",
+		  type = "toggle",
+		  name = "Hide all icons",
+		  desc = "Hide the icons of all datablocks in this bin. Note that datablocks without a label will be invisible if this is enabled.",
+		  order = 31,
+		  disabled = "DisableLabelOption",
+	       },
 	       headerLabels = {
 		  type = "header",
 		  name = "Labels",
@@ -744,7 +752,7 @@ options = {
 		  width = "full",
 		  name = "Show button bin label",
 		  order = 50,
-		  disabled = "DisableLabelOption",
+		  disabled = "DisableBinLabelOption",
 	       },
 	       labelOnMouse = {
 		  width = "full",
@@ -880,6 +888,15 @@ options = {
 		  type = "toggle",
 		  name = "Use global settings",
 		  desc = "Use global settings for scale, button size and padding.",
+		  order = 1,
+	       },
+	       resetFromGlobal = {
+		  type = "execute",
+		  name = "Copy global settings",
+		  desc = "Copy parameters from the global Button Bin settings. This will override the bin specific settings.",
+		  func = "CopyGlobalSettings",
+		  disabled = "UsingGlobalScale",
+		  order = 2,
 	       },
 	       hpadding = {
 		  type = "range",
@@ -1096,6 +1113,16 @@ function binMetaTable:DisableLabelOption(info)
    return not bdb.showLabels
 end
 
+function binMetaTable:DisableHideIconOption(info)
+   local bdb = db.bins[self.binId]
+   return not (bdb.showLabels or not bdb.labelOnMouse)
+end
+
+function binMetaTable:DisableBinLabelOption(info)
+   local bdb = db.bins[self.binId]
+   return not bdb.showLabels or bdb.hideBinIcon
+end
+
 function binMetaTable:DisableHideOption(info)
    local bdb = db.bins[self.binId]
    return bdb.visibility == "always"
@@ -1128,7 +1155,9 @@ function binMetaTable:SetOption(info, val)
       else
 	 self.button.buttonBinText = nil
       end
-      self.button:resizeWindow()
+      if not bdb.hideBinIcon then
+	 self.button:resizeWindow()
+      end
       return
    elseif var == "background" or var == "border" or var == "edgeSize"then
       self:FixBackdrop()
@@ -1138,6 +1167,19 @@ function binMetaTable:SetOption(info, val)
    end   
    mod:ReloadFrame(self) 
 end
+
+do
+   local params = { 'size', 'scale', 'hpadding', 'vpadding' }
+   
+   function binMetaTable:CopyGlobalSettings()
+      local bdb = db.bins[self.binId]
+      for _,param in ipairs(params) do
+	 bdb[param] = db[param]
+      end
+      mod:ReloadFrame(self) 
+   end
+end
+
 
 
 function mod:AddBinOptions(id)
@@ -1236,7 +1278,7 @@ function mod:SortFrames(bin)
    
    local hpadding = (sdb.hpadding or 0)
    local vpadding = (sdb.size + (sdb.vpadding or 0))
-   if not bdb.hideBinIcon then
+   if not bdb.hideBinIcon then 
       previousFrame = bin.button
       previousFrame:resizeWindow()
       previousFrame:ClearAllPoints()
@@ -1401,25 +1443,35 @@ end
 
 local function Frame_ResizeWindow(self, dontShow)
    local bdb,sdb = mod:GetBinSettings(self:GetParent())
-
+   local iconWidth
    self.icon:ClearAllPoints()
    self.label:ClearAllPoints()
-
-   if bdb.flipicons then
-      self.icon:SetPoint("RIGHT", self)
-      self.label:SetPoint("RIGHT", self.icon, "LEFT", -2, 0)
+   
+   if self.name ~= "ButtonBin" and bdb.hideIcons
+      and bdb.showLabels and not bdb.labelOnMouse then
+      self.icon:Hide();
+      iconWidth = 0
+      self.icon:SetWidth(0)
+      self.icon:SetHeight(0)
+      self.label:SetPoint("RIGHT", self)
    else
-      self.icon:SetPoint("LEFT", self)
-      self.label:SetPoint("LEFT", self.icon, "RIGHT", 2, 0)
+      iconWidth = sdb.size
+      self.icon:Show();
+      if bdb.flipicons then
+	 self.icon:SetPoint("RIGHT", self)
+	 self.label:SetPoint("RIGHT", self.icon, "LEFT", -2, 0)
+      else
+	 self.icon:SetPoint("LEFT", self)
+	 self.label:SetPoint("LEFT", self.icon, "RIGHT", 2, 0)
+      end
+      self.icon:SetWidth(sdb.size)
+      self.icon:SetHeight(sdb.size)
    end
-
-
-   self.icon:SetWidth(sdb.size)
-   self.icon:SetHeight(sdb.size)
 
    if not dontShow then self:Show() end
 
    local width
+   
    if bdb.showLabels and (not bdb.labelOnMouse or self._isMouseOver) then
       if bdb.font and bdb.fontsize then
 	 self.label:SetFont(media:Fetch("font", bdb.font), bdb.fontsize)
@@ -1433,13 +1485,17 @@ local function Frame_ResizeWindow(self, dontShow)
       if width > 0 then
 	 self.label:SetWidth(width)
 	 self.label:Show()
-	 width = width + sdb.size + 6
+	 if iconWidth > 0 then
+	    width = width + iconWidth + 6
+	 else
+	    width = width + 3
+	 end
       else
-	 width = sdb.size
+	 width = iconWidth
       end
    else
       self.label:Hide()
-      width = sdb.size
+      width = iconWidth
    end
    if bdb.labelOnMouse then
       local oldWidth = self:GetWidth(self)
