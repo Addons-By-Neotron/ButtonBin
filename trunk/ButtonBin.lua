@@ -1508,23 +1508,26 @@ local function Frame_ResizeWindow(self, dontShow)
    self:SetHeight(sdb.size)
 end
 
-function mod:GetFrame()
-   local frame
-   if #unusedFrames > 0 then
-      frame = unusedFrames[#unusedFrames]
-      unusedFrames[#unusedFrames] = nil
-   else
-      frame = CreateFrame("Button", nil)
-      frame:EnableMouse(true)
-      frame:RegisterForClicks("AnyUp")
-      frame.icon = frame:CreateTexture()
-      frame.label = frame:CreateFontString(nil, nil, "GameFontNormal")
-      frame.resizeWindow = Frame_ResizeWindow
-      frame:SetScript("OnDragStart", Button_OnDragStart)
-      frame:SetScript("OnDragStop", Button_OnDragStop)
-      
+do
+   local numBlocks = 1
+   function mod:GetFrame()
+      local frame
+      if #unusedFrames > 0 then
+	 frame = unusedFrames[#unusedFrames]
+	 unusedFrames[#unusedFrames] = nil
+      else
+	 frame = CreateFrame("Button", "ButtonBinBlock"..numBlocks)
+	 frame:EnableMouse(true)
+	 frame:RegisterForClicks("AnyUp")
+	 frame.icon = frame:CreateTexture()
+	 frame.label = frame:CreateFontString(nil, nil, "GameFontNormal")
+	 frame.resizeWindow = Frame_ResizeWindow
+	 frame:SetScript("OnDragStart", Button_OnDragStart)
+	 frame:SetScript("OnDragStop", Button_OnDragStop)
+	 numBlocks = numBlocks + 1
+      end
+      return frame
    end
-   return frame
 end
 
 function mod:ReleaseFrame(frame)
