@@ -680,7 +680,7 @@ options = {
 		  type = "range",
 		  name = "Bin Scale",
 		  width = "full",
-		  min = 0.01, max = 5, step = 0.05,
+		  min = 0.01, max = 5, step = 0.01,
 		  order = 170,
 	       },
 	    }
@@ -931,7 +931,7 @@ options = {
 		  name = "Bin scale",
 		  desc = "Relative scale of the bin and all contents.",
 		  width = "full",
-		  min = 0.01, max = 5, step = 0.05,
+		  min = 0.01, max = 5, step = 0.01,
 		  order = 170,
 	       },
 	       width = {
