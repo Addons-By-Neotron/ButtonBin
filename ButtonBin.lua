@@ -9,9 +9,10 @@ ButtonBin = LibStub("AceAddon-3.0"):NewAddon("ButtonBin", "AceConsole-3.0", "Ace
 
 -- Silently fail embedding if it doesn't exist
 local LibStub = LibStub
-LDB = LibStub:GetLibrary("LibDataBroker-1.1")
+local LDB = LibStub:GetLibrary("LibDataBroker-1.1")
+local R = LibStub("AceConfigRegistry-3.0")
 
-local BB_DEBUG = false
+local BB_DEBUG = true
 
 local C = LibStub("AceConfigDialog-3.0")
 local DBOpt = LibStub("AceDBOptions-3.0")
@@ -75,19 +76,19 @@ local defaults = {
       },
       size = 24,
       scale = 1.0,
-      width  = 10,
+      width  = 20,
       hpadding = 0.5,
       vpadding = 0.5,
       bins = {
 	 ['*'] = {
 	    colors = {
-	       backgroundColor = { 0, 0, 0, 0},
-	       borderColor = { 0, 0, 0, 0 },
+	       backgroundColor = { 0, 0, 0, 0.5},
+	       borderColor = { 0.88, 0.88, 0.88, 0.8 },
 	    },
 	    edgeSize = 10,
 	    size = 24,
 	    scale = 1.0,
-	    width  = 10,
+	    width  = 20,
 	    hpadding = 0.5,
 	    vpadding = 0.5,
 	    collapsed = false,
@@ -96,10 +97,10 @@ local defaults = {
 	    flipy = false,
 	    hideEmpty = true,
 	    sortedButtons = {},
-	    newlyAdded = true,
-	    hidden = true,
+	    hidden = true, 
 	    labelOnMouse = false,
 	    binLabel = true,
+	    showLabels = true,
 	    visibility = "always",
 	    hideTimeout = 2,
 	    border = "None",
@@ -224,90 +225,10 @@ function mod:OnInitialize()
 
    options.profile = DBOpt:GetOptionsTable(self.db)
 
-   -- Initialize 5 bins, hiding all but the first
-   for id=1,5 do
-      local bin = db.bins[id]
-      if bin.newlyAdded then
-	 if id == 1 then bin.hidden = false end
-      end
-      bin.newlyAdded = nil
-   end
-
-   local bgFrame = {
-      bgFile = "Interface/Tooltips/UI-Tooltip-Background", 
-      edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-      tile = true,
-      tileSize = 16,
-      edgeSize = 6,
-      insets = {left = 1, right = 1, top = 1, bottom = 1}
-   }
-   local tooltip = "Button Bin %d\n"..
-      "|cffffff00Left click|r to collapse/uncollapse all other icons.\n"..
-      "|cffffff00Alt-Left click|r to toggle the button lock.\n"..
-      "|cffffff00Middle click|r to toggle the Button Bin window lock.\n"..
-      "|cffffff00Right click|r to open the Button Bin configuration.\n"
-
+   -- Make sure we have at least one
+   db.bins[1].hidden = false
    for id,bdb in pairs(db.bins) do
-      local f = setmetatable(CreateFrame("Frame", "ButtonBinParent:"..id, UIParent), mod.binMetaTable_mt)
-      local sdb
-      if bdb.useGlobal then sdb = db else sdb = bdb end
-      bins[id] = f
-      f.binId = id
-      f:EnableMouse(true)
-      f:SetClampedToScreen(bdb.clampToScreen)
-      f:SetScale(sdb.scale)
-      f:FixBackdrop()
-      f:SetScript("OnEnter", function(self) self._isMouseOver = true self:ShowOrHide() end)
-      f:SetScript("OnLeave", function(self) self._isMouseOver = nil  self:ShowOrHide(true) end)
-      f.mover = CreateFrame("Button", "ButtonBinMover", UIParent)
-      f.mover:EnableMouse(true)
-      f.mover:SetMovable(true)
-      f.mover:SetBackdrop(bgFrame)
-      f.mover:SetBackdropColor(0, 1, 0);
-      f.mover:SetClampedToScreen(bdb.clampToScreen)
-      f.mover:RegisterForClicks("AnyUp")
-      f.mover:SetFrameStrata("HIGH")
-      f.mover:SetFrameLevel(5)
-      f.mover:SetAlpha(0.5)
-      f.mover:SetScript("OnDragStart",
-			       function(self) self:StartMoving() end)
-      f.mover:SetScript("OnDragStop",
-			       function(self)
-				  mod:SavePosition(f)
-				  self:StopMovingOrSizing() end)
-      f.mover:SetScript("OnClick",
-			       function(frame,button)
-				  mod:ToggleLocked()
-			       end)
-      f.mover.text = CreateFrame("Frame")
-      f.mover.text:SetPoint("BOTTOMLEFT", f.mover, "TOPLEFT")   
-      f.mover.text:SetPoint("BOTTOMRIGHT", f.mover, "TOPRIGHT")
-      f.mover.text:SetHeight(30)
-      f.mover.text:SetFrameStrata("DIALOG")
-      f.mover.text:SetFrameLevel(10)
-      
-      f.mover.text.label = f.mover.text:CreateFontString(nil, nil, "GameFontNormal")
-      f.mover.text.label:SetJustifyH("CENTER")
-      f.mover.text.label:SetPoint("BOTTOM")
-      f.mover.text.label:SetText("Click to stop moving")
-      f.mover.text.label:SetNonSpaceWrap(true)
-      f.mover.text:SetAlpha(1)
-
-      f.button = self:GetFrame()
-      f.button:SetParent(f)
-      f.button:SetScript("OnClick", BB_OnClick)
-      f.button:SetScript("OnEnter", LDB_OnEnter)
-      f.button:SetScript("OnLeave", LDB_OnLeave)
-      f.button.icon:SetTexture("Interface\\AddOns\\ButtonBin\\bin.tga")
-      f.button.db = { bin = id, tooltiptext = tooltip:format(id) }
-      f.button.obj = f.button.db
-      f.button.name = "ButtonBin"
-      if bdb.binLabel then
-	 f.button.buttonBinText = "Bin #"..id
-      end
-      f:ShowOrHide()
-      f.mover:Hide()
-      f.mover.text:Hide()
+      mod:CreateBinFrame(id, bdb)
    end
    
    mod:SetupOptions()
@@ -321,11 +242,46 @@ function mod:OnInitialize()
    end
 end
 
+function mod:AddNewBin()
+   db.bins[#db.bins+1].hidden = false
+   mod:CreateBinFrame(#db.bins, db.bins[#db.bins])
+   self:SetupBinOptions(true)   
+end
+
+do
+   local tooltip = "Button Bin %d\n"..
+      "|cffffff00Left click|r to collapse/uncollapse all other icons.\n"..
+      "|cffffff00Alt-Left click|r to toggle the button lock.\n"..
+      "|cffffff00Middle click|r to toggle the Button Bin window lock.\n"..
+      "|cffffff00Right click|r to open the Button Bin configuration.\n"
+   function mod:CreateBinFrame(id, bdb)
+      local f = mod:GetBinFrame()
+      local sdb
+      if bdb.useGlobal then sdb = db else sdb = bdb end
+      bins[id] = f
+      f.binId = id
+      f:SetClampedToScreen(bdb.clampToScreen)
+      f.mover:SetClampedToScreen(bdb.clampToScreen)
+      f:SetScale(sdb.scale)
+      f:FixBackdrop()
+      f.button.db = { tooltiptext = tooltip:format(id) }
+      f.button.obj = f.button.db
+      f.button.name = "ButtonBin"
+      if bdb.binLabel then
+	 f.button.buttonBinText = "Bin #"..id
+      else
+	 f.button.buttonBinText = nil
+      end
+      f:ShowOrHide()
+   end
+end
+
 function mod:LibDataBroker_DataObjectCreated(event, name, obj)
    ldbObjects[name] = obj
    if db.enabledDataObjects[name].enabled then
       mod:EnableDataObject(name, obj)
       local bdb = db.bins[buttonFrames[name].db.bin]
+--      mod:Print("Enabled ", name, " in bin ", buttonFrames[name].db.bin)
       for _,bname in ipairs(bdb.sortedButtons) do
 	 if name == bname then
 	    return
@@ -405,6 +361,7 @@ function mod:EnableDataObject(name, obj)
    if not frame.db.bin then
       frame.db.bin = 1
    end
+--   mod:Print("Enabling "..name.." in bin "..frame.db.bin.. " = "..tostring(obj.text))
    frame:SetParent(bins[frame.db.bin])
    frame:SetScript("OnEnter", LDB_OnEnter)
    frame:SetScript("OnLeave", LDB_OnLeave)
@@ -430,9 +387,6 @@ function mod:OnEnable()
    self:ApplyProfile()
    if self.SetLogLevel then
       self:SetLogLevel(self.logLevels.TRACE)
-   end
-   for name, obj in LDB:DataObjectIterator() do
-      self:LibDataBroker_DataObjectCreated(nil, name, obj)
    end
    LDB.RegisterCallback(self, "LibDataBroker_DataObjectCreated")
    for _,bin in ipairs(bins) do
@@ -489,13 +443,29 @@ do
 end
 
 function mod:ApplyProfile()
+   -- clean stuff up
+   for id,bin in ipairs(db.bins) do
+      local seen = {}
+      local newButtons = {}
+      for bid, name in pairs(bin.sortedButtons) do
+	 if not seen[name] then
+	    seen[name] = true
+	    if db.enabledDataObjects[name].bin == id then
+	       newButtons[#newButtons+1] = name
+	    end
+	 end
+      end
+      bin.sortedButtons = newButtons
+   end
+	 
    for _,frame in pairs(buttonFrames) do
       mod:ReleaseFrame(frame)
    end
    for name, obj in LDB:DataObjectIterator() do
       self:LibDataBroker_DataObjectCreated(nil, name, obj)
-   end   
-   for _,bin in ipairs(bins) do
+   end
+   for id,bin in ipairs(bins) do
+--      mod:Print("Organizing bin ", id)
       if bin.mover:IsVisible() then
 	 mod:ToggleLocked()
       end
@@ -538,27 +508,34 @@ function mod:LoadPosition(bin)
    if posx and posy then
       bin:SetPoint(anchor, posx/s, posy/s)
    else
-      bin:SetPoint(anchor, UIParent, "CENTER")
+      bin:SetPoint(anchor, UIParent, "TOPLEFT")
+      if bdb.pixelwidth == 0 then
+	 bdb.pixelwidth = UIParent:GetWidth()
+	 mod:SortFrames(bin)
+      end
    end
 end
 
 function mod:OnProfileChanged(event, newdb, src)
+--   mod:Print("Event = ", event, "newdb = ", newdb, "src=", src)
    if event ~= "OnProfileDeleted" then
       db = self.db.profile
-      if event == "OnProfileCopied" then
-	 -- This hack seems to be necessary for some reason
-	 -- no sure why but otherwise I get extra crap
-	 local srcBins = ButtonBinDB.profiles[src].bins
-	 for id,data in ipairs(srcBins) do
-	    local buttons = db.bins[id] and db.bins[id].sortedButtons
-	    if data.sortedButtons and buttons then
-	       for pos = #data.sortedButtons+1, #buttons do
-		  buttons[pos] = nil
-	       end
-	    end
+
+      for id,frame in ipairs(bins) do
+	 mod:ReleaseBinFrame(frame)
+      end
+      if event == "OnProfileReset" then
+	 for id,frame in ipairs(bins) do
+	    db.bins[id] = nil
 	 end
+	 db.bins[1].hidden = false
+      end
+      for id,bdb in pairs(db.bins) do
+--	 mod:Print("Creating bin frame ", id)
+	 mod:CreateBinFrame(id, bdb)
       end
       self:ApplyProfile()
+      self:SetupBinOptions(true)
    end
 end
 
@@ -688,14 +665,47 @@ options = {
 	 }
       }
    },
+   bins = {
+      type = "group",
+      name = "Bins",
+--      childGroups = "select",
+      handler = mod, 
+      args = {
+	 newbin = {
+	    type = "execute",
+	    name = "Add a new bin",
+	    desc = "Create a new display bin.",
+	    func = "AddNewBin"
+	 }
+      }
+   },
    binConfig = {
       type = "group",
       name = "Bin #",
       order = 4,
-      childGroups = "tab",
+--      childGroups = "tab",
       get = "GetOption", 
       set = "SetOption", 
       args = {
+	 help = {
+	    type = "description",
+	    name = "Select the sub-sections to configure this bin. You can also delete the bin permanently by clicking the button below.",
+	    order = 1,
+	 }, 
+	 separator = {
+	    type = "header",
+	    name = "",
+	    order = 2,
+	 },
+	 delete = {
+	    type = "execute",
+	    name = "Delete bin",
+	    desc = "Delete this bin. All objects displayed in this bin will be hidden and all settings purged.",
+	    func = "DeleteBin",
+	    confirm = true,
+	    confirmText = "Are you sure that you want to delete this bin?",
+	    order = 10,
+	 },
 	 general = {
 	    type = "group",
 	    name = "General",
@@ -882,7 +892,7 @@ options = {
 	 },
 	 spacing = {
 	    type = "group",
-	    name = "Padding and Sizing",
+	    name = "Sizing",
 	    args = {
 	       useGlobal = {
 		  type = "toggle",
@@ -1133,6 +1143,45 @@ function binMetaTable:UsingGlobalScale(info)
    return bdb.useGlobal
 end
 
+function binMetaTable:DeleteBin(info)
+   local bdb = db.bins[self.binId]
+   self.disabled = true
+   -- Disabled all datablocks in this bin
+   for id, button in pairs(bdb.sortedButtons) do
+      mod:DisableDataObject(button)
+      db.enabledDataObjects[button].bin = 1 -- default to be added to bin 1
+   end
+
+   -- This makes sure to "move" objects to a lower bin
+   for id, data in pairs(db.enabledDataObjects) do
+      if data.bin and data.bin > self.binId then
+	 data.bin = data.bin - 1
+      end
+   end
+   mod:ReleaseBinFrame(self)
+
+   -- We're shifting bins down one
+   for id = self.binId+1,#db.bins do
+      local bdb = db.bins[id]
+      local sdb
+      if bdb.useGlobal then sdb = db else sdb = bdb end
+      local destBinID = id - 1
+      db.bins[destBinID] = db.bins[id]
+      local f = bins[id]
+      bins[destBinID] = f
+      if f then
+	 f.binId = destBinID
+	 if bdb.binLabel then
+	    f.button.buttonBinText = "Bin #"..destBinID
+	 end
+      end
+   end
+   -- remove the last one
+   db.bins[#db.bins] = nil
+   bins[#bins]= nil
+   mod:SetupBinOptions(true)
+end
+
 function binMetaTable:GetOption(info)
    local bdb = db.bins[self.binId]
    local var = info[#info]
@@ -1181,33 +1230,40 @@ do
 end
 
 
-
-function mod:AddBinOptions(id)
-   local bin = {}
-   for key,val in pairs(options.binConfig) do
-      bin[key] = val
+function mod:SetupBinOptions(reload)
+   for id in pairs(options.bins.args) do
+      if id ~= "newbin" then
+	 options.bins.args[id] = nil
+      end
    end
-   bin.name = bin.name .. id
-   bin.handler = bins[id]
-   mod.binopts[id] = mod:OptReg(": "..bin.name, bin, bin.name)
-   
+   for id, bin in ipairs(db.bins) do
+      local bin = {}
+      for key,val in pairs(options.binConfig) do
+	 bin[key] = val
+      end
+      bin.name = bin.name .. id
+      bin.handler = bins[id]
+      options.bins.args[tostring(id)] = bin
+   end
+   if reload then 
+      R:NotifyChange("Button Bin: Bins")
+   else
+      mod.binopts = mod:OptReg(": Bins", options.bins, "Bins")
+   end
 end
 
 function mod:SetupOptions()
    mod.main = mod:OptReg("Button Bin", options.global)
+   mod:SetupBinOptions()
    mod:OptReg(": Data Blocks", options.objects, "Data Blocks")
    mod.profile = mod:OptReg(": Profiles", options.profile, "Profiles")
-   mod.binopts = {}
-   for id, bin in ipairs(db.bins) do
-      mod:AddBinOptions(id)
-   end
    mod:OptReg("Button Bin CmdLine", options.cmdline, nil,  { "buttonbin", "bin" })
 end
 
 function mod:ToggleConfigDialog(frame)
    if frame then 
       bin = frame:GetParent()
-      InterfaceOptionsFrame_OpenToCategory(mod.binopts[bin.binId])
+      InterfaceOptionsFrame_OpenToCategory(mod.binopts)
    else
       InterfaceOptionsFrame_OpenToCategory(mod.profile)
       InterfaceOptionsFrame_OpenToCategory(mod.main)
@@ -1232,7 +1288,8 @@ function mod:GetBinSettings(bin)
 end
 
 function mod:SortFrames(bin)
-   --   mod:Print("Sorting frames for bin "..bin.binId)
+   if not bin or bin.disabled then return end
+   
    local bdb,sdb = mod:GetBinSettings(bin)
    local sizeOptions
    local xoffset = 0
@@ -1340,176 +1397,176 @@ function mod:SortFrames(bin)
 end
 
 
-local unusedFrames = {}
-local oldSorted
-
-local function Button_OnDragStart()
-   local toRemove
-   local bin = this:GetParent()
-   local bdb = db.bins[bin.binId]
-   local newSorted = {}
-   for id, name in pairs(bdb.sortedButtons) do
-      if name ~= this.name then
-	 newSorted[#newSorted+1] = name
-      end
-   end
-   oldSorted = bdb.sortedButtons
-   bdb.sortedButtons = newSorted
-   mod:SortFrames(bin)
-   this:ClearAllPoints()
-   this:StartMoving()
-   this:SetAlpha(0.75)
-   this:SetFrameLevel(100)
-end
-
-local function Button_OnDragStop()
-   local bin = this:GetParent()
-   local bdb = db.bins[bin.binId]
-   local destFrame, destParent
-   this:StopMovingOrSizing()
-   this:SetFrameLevel(98)
-   this:SetAlpha(1.0)
-   for id,frame in ipairs(bins) do
-      if mod:MouseIsOver(frame.button) then
-	 destFrame = frame.button
-	 destParent = frame
-      end
-   end
-
-   if not destFrame then
-      for name,frame in pairs(buttonFrames) do
-	 if mod:MouseIsOver(frame) and frame ~= this then
-	    destFrame = frame
-	    destParent = frame:GetParent()
-	    break
+do
+   local unusedFrames = {}
+   local numBlocks = 1      
+   local oldSorted
+   
+   local function Button_OnDragStart()
+      local toRemove
+      local bin = this:GetParent()
+      local bdb = db.bins[bin.binId]
+      local newSorted = {}
+      for id, name in pairs(bdb.sortedButtons) do
+	 if name ~= this.name then
+	    newSorted[#newSorted+1] = name
 	 end
       end
+      oldSorted = bdb.sortedButtons
+      bdb.sortedButtons = newSorted
+      mod:SortFrames(bin)
+      this:ClearAllPoints()
+      this:StartMoving()
+      this:SetAlpha(0.75)
+      this:SetFrameLevel(100)
    end
-   if destFrame and destParent then
-      if destParent ~= bin then
---	 mod:Print("Changing parent from "..bin.binId.." to "..destParent.binId)
-	 this.db.bin = destParent.binId
-	 this:SetParent(destParent)
-	 bdb = db.bins[destParent.binId]
-      end
-      local inserted 
-      if destParent.button == destFrame then
-	 tinsert(bdb.sortedButtons, 1, this.name)
-	 inserted = true
-      else
-	 local x, midpoint
-	 local add = 0
-	 if bdb.width > 1 then
-	    x = GetCursorPosition()
-	    midpoint = (destFrame:GetLeft() + destFrame:GetWidth()/2)*destParent:GetEffectiveScale()
-	    if bdb.flipx then
-	       if x < midpoint then add = 1 end
-	    else
-	       if x > midpoint then add = 1 end
-	    end
-	 else
-	    _,x = GetCursorPosition()
-	    midpoint = (destFrame:GetBottom() + destFrame:GetHeight()/2)*destParent:GetEffectiveScale()
-	    if bdb.flipy then
-	       if x > midpoint then add = 1 end
-	    else
-	       if x < midpoint then add = 1 end
-	    end
+   
+   local function Button_OnDragStop()
+      local bin = this:GetParent()
+      local bdb = db.bins[bin.binId]
+      local destFrame, destParent
+      this:StopMovingOrSizing()
+      this:SetFrameLevel(98)
+      this:SetAlpha(1.0)
+      for id,frame in ipairs(bins) do
+	 if mod:MouseIsOver(frame.button) then
+	    destFrame = frame.button
+	    destParent = frame
 	 end
-
---	 mod:Print("x = "..x..", mid = "..midpoint.."...")
-	 for id,n in pairs(bdb.sortedButtons) do
-	    if destFrame.name == n then
-	       id = id + add 
-	       if id < 1 then id = 1 end
-	       if id > (#bdb.sortedButtons+1) then id = id - 1 end
-	       tinsert(bdb.sortedButtons, id, this.name)
-	       inserted = true
+      end
+      
+      if not destFrame then
+	 for name,frame in pairs(buttonFrames) do
+	    if mod:MouseIsOver(frame) and frame ~= this then
+	       destFrame = frame
+	       destParent = frame:GetParent()
 	       break
 	    end
 	 end
       end
-      if inserted then
-	 oldSorted = nil
-	 mod:SortFrames(destParent)
-	 return
-      end
-   end
-   -- no valid destination, roll state back
-   bdb.sortedButtons = oldSorted
-   this:SetParent(bin)
-   mod:SortFrames(bin)
-end
-
-local function Frame_ResizeWindow(self, dontShow)
-   local bdb,sdb = mod:GetBinSettings(self:GetParent())
-   local iconWidth
-   self.icon:ClearAllPoints()
-   self.label:ClearAllPoints()
-   
-   if self.name ~= "ButtonBin" and bdb.hideIcons
-      and bdb.showLabels and not bdb.labelOnMouse then
-      self.icon:Hide();
-      iconWidth = 0
-      self.icon:SetWidth(0)
-      self.icon:SetHeight(0)
-      self.label:SetPoint("RIGHT", self)
-   else
-      iconWidth = sdb.size
-      self.icon:Show();
-      if bdb.flipicons then
-	 self.icon:SetPoint("RIGHT", self)
-	 self.label:SetPoint("RIGHT", self.icon, "LEFT", -2, 0)
-      else
-	 self.icon:SetPoint("LEFT", self)
-	 self.label:SetPoint("LEFT", self.icon, "RIGHT", 2, 0)
-      end
-      self.icon:SetWidth(sdb.size)
-      self.icon:SetHeight(sdb.size)
-   end
-
-   if not dontShow then self:Show() end
-
-   local width
-   
-   if bdb.showLabels and (not bdb.labelOnMouse or self._isMouseOver) then
-      if bdb.font and bdb.fontsize then
-	 self.label:SetFont(media:Fetch("font", bdb.font), bdb.fontsize)
-      end
-      if bdb.shortLabels then
-	 self.label:SetText(self.shortButtonText or self.buttonBinText)
-      else
-	 self.label:SetText(self.buttonBinText or self.shortButtonText)
-      end
-      width = self.label:GetStringWidth()
-      if width > 0 then
-	 self.label:SetWidth(width)
-	 self.label:Show()
-	 if iconWidth > 0 then
-	    width = width + iconWidth + 6
+      if destFrame and destParent then
+	 if destParent ~= bin then
+	    --	 mod:Print("Changing parent from "..bin.binId.." to "..destParent.binId)
+	    this.db.bin = destParent.binId
+	    this:SetParent(destParent)
+	    bdb = db.bins[destParent.binId]
+	 end
+	 local inserted 
+	 if destParent.button == destFrame then
+	    tinsert(bdb.sortedButtons, 1, this.name)
+	    inserted = true
 	 else
-	    width = width + 3
+	    local x, midpoint
+	    local add = 0
+	    if bdb.width > 1 then
+	       x = GetCursorPosition()
+	       midpoint = (destFrame:GetLeft() + destFrame:GetWidth()/2)*destParent:GetEffectiveScale()
+	       if bdb.flipx then
+		  if x < midpoint then add = 1 end
+	       else
+		  if x > midpoint then add = 1 end
+	       end
+	    else
+	       _,x = GetCursorPosition()
+	       midpoint = (destFrame:GetBottom() + destFrame:GetHeight()/2)*destParent:GetEffectiveScale()
+	       if bdb.flipy then
+		  if x > midpoint then add = 1 end
+	       else
+		  if x < midpoint then add = 1 end
+	       end
+	    end
+	    
+	    --	 mod:Print("x = "..x..", mid = "..midpoint.."...")
+	    for id,n in pairs(bdb.sortedButtons) do
+	       if destFrame.name == n then
+		  id = id + add 
+		  if id < 1 then id = 1 end
+		  if id > (#bdb.sortedButtons+1) then id = id - 1 end
+		  tinsert(bdb.sortedButtons, id, this.name)
+		  inserted = true
+		  break
+	       end
+	    end
+	 end
+	 if inserted then
+	    oldSorted = nil
+	    mod:SortFrames(destParent)
+	    return
+	 end
+      end
+      -- no valid destination, roll state back
+      bdb.sortedButtons = oldSorted
+      this:SetParent(bin)
+      mod:SortFrames(bin)
+   end
+
+   local function Frame_ResizeWindow(self, dontShow)
+      local bdb,sdb = mod:GetBinSettings(self:GetParent())
+      local iconWidth
+      self.icon:ClearAllPoints()
+      self.label:ClearAllPoints()
+      
+      if self.name ~= "ButtonBin" and bdb.hideIcons
+	 and bdb.showLabels and not bdb.labelOnMouse then
+	 self.icon:Hide();
+	 iconWidth = 0
+	 self.icon:SetWidth(0)
+	 self.icon:SetHeight(0)
+	 self.label:SetPoint("RIGHT", self)
+      else
+	 iconWidth = sdb.size
+	 self.icon:Show();
+	 if bdb.flipicons then
+	    self.icon:SetPoint("RIGHT", self)
+	    self.label:SetPoint("RIGHT", self.icon, "LEFT", -2, 0)
+	 else
+	    self.icon:SetPoint("LEFT", self)
+	    self.label:SetPoint("LEFT", self.icon, "RIGHT", 2, 0)
+	 end
+	 self.icon:SetWidth(sdb.size)
+	 self.icon:SetHeight(sdb.size)
+      end
+      
+      if not dontShow then self:Show() end
+      
+      local width
+      if bdb.showLabels and (not bdb.labelOnMouse or self._isMouseOver) then
+	 if bdb.font and bdb.fontsize then
+	    self.label:SetFont(media:Fetch("font", bdb.font), bdb.fontsize)
+	 end
+	 if bdb.shortLabels then
+	    self.label:SetText(self.shortButtonText or self.buttonBinText)
+	 else
+	    self.label:SetText(self.buttonBinText or self.shortButtonText)
+	 end	
+	 width = self.label:GetStringWidth()
+	 if width > 0 then
+	    self.label:SetWidth(width)
+	    self.label:Show()
+	    if iconWidth > 0 then
+	       width = width + iconWidth + 6
+	    else
+	       width = width + 3
+	    end
+	 else
+	    width = iconWidth
 	 end
       else
+	 self.label:SetText("")
+	 self.label:Hide()
 	 width = iconWidth
       end
-   else
-      self.label:Hide()
-      width = iconWidth
-   end
-   if bdb.labelOnMouse then
-      local oldWidth = self:GetWidth(self)
-      if oldWidth ~= width then
-	 local bin = self:GetParent()
-	 bin:SetWidth(bin:GetWidth() - oldWidth + width)
+      if bdb.labelOnMouse then
+	 local oldWidth = self:GetWidth(self)
+	 if oldWidth ~= width then
+	    local bin = self:GetParent()
+	    bin:SetWidth(bin:GetWidth() - oldWidth + width)
+	 end
       end
+      self:SetWidth(width)
+      self:SetHeight(sdb.size)
    end
-   self:SetWidth(width)
-   self:SetHeight(sdb.size)
-end
 
-do
-   local numBlocks = 1
    function mod:GetFrame()
       local frame
       if #unusedFrames > 0 then
@@ -1528,25 +1585,116 @@ do
       end
       return frame
    end
+
+   function mod:ReleaseFrame(frame)
+      local bin = frame:GetParent()
+--      mod:Print("Releasing button frame ", frame.name)
+      buttonFrames[frame.name] = nil
+      unusedFrames[#unusedFrames+1] = frame
+      frame:Hide()
+      frame:SetParent(nil)
+      frame.buttonBinText = nil
+      frame.db = nil
+      frame.name = nil
+      frame.obj = nil
+      frame._has_texture = nil
+      frame:SetScript("OnEnter", nil)
+      frame:SetScript("OnLeave", nil)
+      frame:SetScript("OnClick", nil)
+      if bin and not bin.disabled then self:SortFrames(bin) end
+   end  
 end
 
-function mod:ReleaseFrame(frame)
-   local bin = frame:GetParent()
-   buttonFrames[frame.name] = nil
-   unusedFrames[#unusedFrames+1] = frame
-   frame:Hide()
-   frame:SetParent(nil)
-   frame.buttonBinText = nil
-   frame.db = nil
-   frame.name = nil
-   frame.obj = nil
-   frame._has_texture = nil
-   frame:SetScript("OnEnter", nil)
-   frame:SetScript("OnLeave", nil)
-   frame:SetScript("OnClick", nil)
-   if bin then self:SortFrames(bin) end
-end
+unusedBinFrames = {}
+do
+   local numBinFrames = 1
+   local bgFrame = {
+      bgFile = "Interface/Tooltips/UI-Tooltip-Background", 
+      edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+      tile = true,
+      tileSize = 16,
+      edgeSize = 6,
+      insets = {left = 1, right = 1, top = 1, bottom = 1}
+   }
+   function mod:ReleaseBinFrame(frame)
+      frame.disabled = true
+      for _,obj in pairs(buttonFrames) do
+	 if obj:GetParent() == frame then
+	    mod:ReleaseFrame(obj)
+	 end
+      end
+      unusedBinFrames[#unusedBinFrames+1] = frame
+--      mod:Print("Released bin frame id ", frame.binId,  " at position #", #unusedBinFrames)
+      bins[frame.binId] = nil
+      frame.button.db = nil
+      frame.button.binId = nil
+      frame.button.obj = nil
+      frame.mover.text:Hide()
+      frame.mover:Hide()
+      frame:Hide()
+   end
    
+   function mod:GetBinFrame()
+      local f
+      if #unusedBinFrames > 0 then
+	 f = unusedBinFrames[#unusedBinFrames]
+	 f.disabled = nil
+--	 mod:Print("Using unused bin frame #", #unusedBinFrames)
+	 unusedBinFrames[#unusedBinFrames] = nil
+      else
+--	 mod:Print("Creating new bin frame");
+	 f = setmetatable(CreateFrame("Frame", "ButtonBinParent:"..numBinFrames, UIParent), mod.binMetaTable_mt)
+	 f:EnableMouse(true)
+	 f:SetScript("OnEnter", function(self) self._isMouseOver = true self:ShowOrHide() end)
+	 f:SetScript("OnLeave", function(self) self._isMouseOver = nil  self:ShowOrHide(true) end)
+	 f.mover = CreateFrame("Button", "ButtonBinMover", UIParent)
+	 f.mover:EnableMouse(true)
+	 f.mover:SetMovable(true)
+	 f.mover:SetBackdrop(bgFrame)
+	 f.mover:SetBackdropColor(0, 1, 0);
+	 f.mover:RegisterForClicks("AnyUp")
+	 f.mover:SetFrameStrata("HIGH")
+	 f.mover:SetFrameLevel(5)
+	 f.mover:SetAlpha(0.5)
+	 f.mover:SetScript("OnDragStart",
+			   function(self) self:StartMoving() end)
+	 f.mover:SetScript("OnDragStop",
+			   function(self)
+			      mod:SavePosition(f)
+			      self:StopMovingOrSizing() end)
+	 f.mover:SetScript("OnClick",
+			   function(frame,button)
+			      mod:ToggleLocked()
+			   end)
+	 f.mover.text = CreateFrame("Frame")
+	 f.mover.text:SetPoint("BOTTOMLEFT", f.mover, "TOPLEFT")   
+	 f.mover.text:SetPoint("BOTTOMRIGHT", f.mover, "TOPRIGHT")
+	 f.mover.text:SetHeight(30)
+	 f.mover.text:SetFrameStrata("DIALOG")
+	 f.mover.text:SetFrameLevel(10)
+   
+	 f.mover.text.label = f.mover.text:CreateFontString(nil, nil, "GameFontNormal")
+	 f.mover.text.label:SetJustifyH("CENTER")
+	 f.mover.text.label:SetPoint("BOTTOM")
+	 f.mover.text.label:SetText("Click to stop moving")
+	 f.mover.text.label:SetNonSpaceWrap(true)
+	 f.mover.text:SetAlpha(1)
+   
+	 f.button = self:GetFrame()
+	 f.button:SetParent(f)
+	 f.button:SetScript("OnClick", BB_OnClick)
+	 f.button:SetScript("OnEnter", LDB_OnEnter)
+	 f.button:SetScript("OnLeave", LDB_OnLeave)
+	 f.button.icon:SetTexture("Interface\\AddOns\\ButtonBin\\bin.tga")
+	 f.button.name = "ButtonBin"
+	 f.mover:Hide()
+	 f.mover.text:Hide()	 
+      end
+      return f
+   end
+end
+
+
 function mod:MouseIsOver(frame)
    local x, y = GetCursorPosition();
    x = x / frame:GetEffectiveScale();
