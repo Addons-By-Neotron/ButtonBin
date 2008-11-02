@@ -371,8 +371,8 @@ function mod:EnableDataObject(name, obj)
    end	
 
    LDB.RegisterCallback(self, "LibDataBroker_AttributeChanged_"..name, "AttributeChanged")
-
    mod:SortFrames(frame:GetParent())
+   mod:SetupDataBlockOptions(true)
 end
 
 function mod:DisableDataObject(name, obj)
@@ -381,6 +381,7 @@ function mod:DisableDataObject(name, obj)
    if buttonFrames[name] then
       self:ReleaseFrame(buttonFrames[name])
    end
+   mod:SetupDataBlockOptions(true)
 end
 
 function mod:OnEnable()
@@ -665,6 +666,40 @@ options = {
 	 }
       }
    },
+   
+   dataBlock = {
+      type = "group",
+      handler = mod,
+      set = "SetDataBlockOption",
+      get = "GetDataBlockOption", 
+      args = {
+	 help = {
+	    type = "description",
+	    name = "You can override the bar level configuration in this section. Note that when enabled, these settings will always override the settings of the individual bins.",
+	    order = 0,
+	 },
+	 blockOverride = {
+	    type = "toggle",
+	    name = "Override bin config",
+	    desc = "If override is enabled, the settings here are used over the bin level configuration. Otherwise the block will be displayed as per the bin settings.",
+	    order = 1,
+	 },
+	 
+	 hideIcon = {
+	    type = "toggle",
+	    name = "Hide icon",
+	    desc = "Hide the icon for this datablock.",
+	    hidden = "HideDataBlockOptions"
+	 },
+	 hideLabel = {
+	    type = "toggle",
+	    name = "Hide label",
+	    desc = "Hide the label for this datablock", 	
+	    hidden = "HideDataBlockOptions"
+	 },
+      }
+   },
+
    bins = {
       type = "group",
       name = "Bins",
@@ -964,6 +999,12 @@ options = {
 	 }
       }
    },
+   objconfig = {
+      name = "Data Object Configuration",
+      type = "group",
+      args = {
+      }
+   },
    objects = {
       name = "Enabled Data Objects",
       type = "group",
@@ -1028,6 +1069,27 @@ function mod:OptReg(optname, tbl, dispname, cmd)
       end
    end
 end
+
+function mod:SetDataBlockOption(info, val)
+   local var  = info[#info]
+   local name = options.objconfig.args[info[#info - 1]].name
+   db.enabledDataObjects[name][var] = val
+   if buttonFrames[name] then
+      buttonFrames[name]:resizeWindow(true)
+   end
+end
+
+function mod:GetDataBlockOption(info)
+   local var  = info[#info]
+   local name = options.objconfig.args[info[#info - 1]].name
+   return db.enabledDataObjects[name][var]
+end
+
+function mod:HideDataBlockOptions(info)
+   local name = options.objconfig.args[info[#info - 1]].name
+   return not db.enabledDataObjects[name].blockOverride
+end
+
 function mod:GetOption(info)
    return db[info[#info]]
 end
@@ -1235,7 +1297,6 @@ function mod:SetupBinOptions(reload)
       end
    end
    for id, bin in ipairs(db.bins) do
-      mod:Print("Building options for ", id)
       local bin = {}
       for key,val in pairs(options.binConfig) do
 	 bin[key] = val
@@ -1251,10 +1312,47 @@ function mod:SetupBinOptions(reload)
    end
 end
 
+
+function mod:SetupDataBlockOptions(reload)
+
+   local conf = options.objconfig.args 
+   local counter = 1
+
+   local used = {}
+   if reload then
+      for id,data in pairs(conf) do
+	 mod:Print("Saving ", data.name, " from index ", id)
+	 used[data.name] = data
+	 conf[id] = nil
+      end
+   end
+   for name,data in pairs(db.enabledDataObjects) do
+      if data.enabled and LDB:GetDataObjectByName(name) then
+	 local obj = used[name]
+	 if not obj then 
+	    obj = {}
+	    for key, val in pairs(options.dataBlock) do
+	       obj[key] = val
+	    end
+	    obj.name = name
+	 end
+	 conf[tostring(counter)] = obj
+	 counter = counter + 1
+      end
+   end
+   
+   if reload then
+      R:NotifyChange("Button Bin: Data Block Configuration")
+   else
+      mod:OptReg(": Data Blocks", options.objects, "Data Blocks")
+      mod:OptReg(": Data Block Config", options.objconfig, "Data Block Configuration")
+   end
+end
+
 function mod:SetupOptions()
    mod.main = mod:OptReg("Button Bin", options.global)
    mod:SetupBinOptions()
-   mod:OptReg(": Data Blocks", options.objects, "Data Blocks")
+   mod:SetupDataBlockOptions()
    mod.profile = mod:OptReg(": Profiles", options.profile, "Profiles")
    mod:OptReg("Button Bin CmdLine", options.cmdline, nil,  { "buttonbin", "bin" })
 end
@@ -1499,14 +1597,24 @@ do
       mod:SortFrames(bin)
    end
 
+   function mod:DataBlockConfig(name, var, global) 
+      local bcfg = db.enabledDataObjects[name]
+      if not bcfg or not bcfg.blockOverride then
+	 return global
+      end
+      return bcfg[var]
+   end
+   
    local function Frame_ResizeWindow(self, dontShow)
-      local bdb,sdb = mod:GetBinSettings(self:GetParent())
+      local bdb,sdb,dbs = mod:GetBinSettings(self:GetParent())
       local iconWidth
+      local hideIcon = mod:DataBlockConfig(self.name, "hideIcon", bdb.hideIcons)
+      local showLabel = not mod:DataBlockConfig(self.name, "hideLabel", not bdb.showLabels)
       self.icon:ClearAllPoints()
       self.label:ClearAllPoints()
       
-      if self.name ~= "ButtonBin" and bdb.hideIcons
-	 and bdb.showLabels and not bdb.labelOnMouse then
+      if self.name ~= "ButtonBin" and hideIcon and showLabel
+	 and not bdb.labelOnMouse then
 	 self.icon:Hide();
 	 iconWidth = 0
 	 self.icon:SetWidth(0)
@@ -1527,9 +1635,12 @@ do
       end
       
       if not dontShow then self:Show() end
+
+
+      
       
       local width
-      if bdb.showLabels and (not bdb.labelOnMouse or self._isMouseOver) then
+      if showLabel and (not bdb.labelOnMouse or self._isMouseOver) then
 	 if bdb.font and bdb.fontsize then
 	    self.label:SetFont(media:Fetch("font", bdb.font), bdb.fontsize)
 	 end
