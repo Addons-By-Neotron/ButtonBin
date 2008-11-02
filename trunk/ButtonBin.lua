@@ -12,7 +12,7 @@ local LibStub = LibStub
 local LDB = LibStub:GetLibrary("LibDataBroker-1.1")
 local R = LibStub("AceConfigRegistry-3.0")
 
-local BB_DEBUG = true
+local BB_DEBUG = false
 
 local C = LibStub("AceConfigDialog-3.0")
 local DBOpt = LibStub("AceDBOptions-3.0")
@@ -703,7 +703,7 @@ options = {
 	    desc = "Delete this bin. All objects displayed in this bin will be hidden and all settings purged.",
 	    func = "DeleteBin",
 	    confirm = true,
-	    confirmText = "Are you sure that you want to delete this bin?",
+	    confirmText = "Are you sure that you want to delete this bin? This action can't be reverted.",
 	    order = 10,
 	 },
 	 general = {
@@ -1158,8 +1158,6 @@ function binMetaTable:DeleteBin(info)
 	 data.bin = data.bin - 1
       end
    end
-   mod:ReleaseBinFrame(self)
-
    -- We're shifting bins down one
    for id = self.binId+1,#db.bins do
       local bdb = db.bins[id]
@@ -1176,6 +1174,7 @@ function binMetaTable:DeleteBin(info)
 	 end
       end
    end
+   mod:ReleaseBinFrame(self, true)
    -- remove the last one
    db.bins[#db.bins] = nil
    bins[#bins]= nil
@@ -1229,7 +1228,6 @@ do
    end
 end
 
-
 function mod:SetupBinOptions(reload)
    for id in pairs(options.bins.args) do
       if id ~= "newbin" then
@@ -1237,6 +1235,7 @@ function mod:SetupBinOptions(reload)
       end
    end
    for id, bin in ipairs(db.bins) do
+      mod:Print("Building options for ", id)
       local bin = {}
       for key,val in pairs(options.binConfig) do
 	 bin[key] = val
@@ -1605,8 +1604,8 @@ do
    end  
 end
 
-unusedBinFrames = {}
 do
+   local unusedBinFrames = {}
    local numBinFrames = 1
    local bgFrame = {
       bgFile = "Interface/Tooltips/UI-Tooltip-Background", 
@@ -1616,7 +1615,7 @@ do
       edgeSize = 6,
       insets = {left = 1, right = 1, top = 1, bottom = 1}
    }
-   function mod:ReleaseBinFrame(frame)
+   function mod:ReleaseBinFrame(frame, noClear)
       frame.disabled = true
       for _,obj in pairs(buttonFrames) do
 	 if obj:GetParent() == frame then
@@ -1625,7 +1624,9 @@ do
       end
       unusedBinFrames[#unusedBinFrames+1] = frame
 --      mod:Print("Released bin frame id ", frame.binId,  " at position #", #unusedBinFrames)
-      bins[frame.binId] = nil
+      if not noClear then
+	 bins[frame.binId] = nil
+      end
       frame.button.db = nil
       frame.button.binId = nil
       frame.button.obj = nil
