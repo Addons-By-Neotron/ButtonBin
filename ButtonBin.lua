@@ -594,8 +594,10 @@ function mod:ToggleButtonLock()
 	 frame:SetScript("OnEnter", nil)
 	 frame:SetScript("OnLeave", nil)
       else
-	 frame:SetScript("OnEnter", frame._onenter or LDB_OnEnter)
-	 frame:SetScript("OnLeave", frame._onleave or LDB_OnLeave)
+	 if name ~= ButtonBin or not db.hideBinTooltip then
+	    frame:SetScript("OnEnter", frame._onenter or LDB_OnEnter)
+	    frame:SetScript("OnLeave", frame._onleave or LDB_OnLeave)
+	 end
 	 frame._onenter = nil frame._onleave = nil
       end
    end
@@ -607,6 +609,13 @@ end
 function mod:ReloadFrame(bin)
    local wasUnlocked = unlockFrames
    if wasUnlocked then mod:ToggleLocked() end
+   if not db.hideBinTooltip then
+      bin.button:SetScript("OnEnter", LDB_OnEnter)
+      bin.button:SetScript("OnLeave", LDB_OnLeave)
+   else
+      bin.button:SetScript("OnEnter", nil)      
+      bin.button:SetScript("OnLeave", nil)
+   end
    mod:SortFrames(bin)
    mod:SavePosition(bin)
    mod:LoadPosition(bin)
@@ -638,34 +647,40 @@ options = {
 	    get = function() return not unlockButtons end,
 	    set = function() mod:ToggleButtonLock() end
 	 },
+	 hideBinTooltip = {
+	    type = "toggle",
+	    width = "full",
+	    name = "Hide Button Bin tooltips",
+	    desc = "Decide whether or not to show the helper tooltip when mousing over the Button Bin icons.",
+	 },
 	 globalScale = {
 	    type = "group",
-	    name = "Scale and Size",
+	    name = "Scale and size",
 	    args = {
 	       hpadding = {
 		  type = "range",
-		  name = "Horizontal Button Padding",
+		  name = "Horizontal button padding",
 		  width = "full",
 		  min = 0, max = 50, step = 0.1,
 		  order = 130,
 	       }, 
 	       vpadding = {
 		  type = "range",
-		  name = "Vertical Button Padding",
+		  name = "Vertical button padding",
 		  width = "full",
 		  min = 0, max = 50, step = 0.1,
 		  order = 140,
 	       },
 	       size = {
 		  type = "range",
-		  name = "Button Size",
+		  name = "Button size",
 		  width = "full",
 		  min = 5, max = 50, step = 1,
 		  order = 160,
 	       },
 	       scale = {
 		  type = "range",
-		  name = "Bin Scale",
+		  name = "Bin scale",
 		  width = "full",
 		  min = 0.01, max = 5, step = 0.01,
 		  order = 170,
@@ -842,7 +857,8 @@ options = {
 		     always = "Always visible",
 		     mouse = "Show on mouseover",
 		     inCombat = "Show only in combat",
-		     noCombat = "Hide during combat"
+		     noCombat = "Hide during combat",
+		     mouseNoCombat = "Mouseover, not combat",
 		  },
 		  order = 110,
 	       },
@@ -1158,6 +1174,25 @@ function binMetaTable:ShowOrHide(timer)
 	 if not self._isMouseOver then
 	    self:SetAlpha(0.0)
 	 end
+	 for _,name in ipairs(bdb.sortedButtons) do
+	    if buttonFrames[name] then 
+	       buttonFrames[name]:resizeWindow()
+	    end
+	 end
+      elseif bdb.visibility == "mouseNoCombat" then
+	 if playerInCombat then
+	    self:Hide()
+	 else
+	    self:Show()
+	    if not self._isMouseOver then
+	       self:SetAlpha(0.0)
+	    end
+	    for _,name in ipairs(bdb.sortedButtons) do
+	       if buttonFrames[name] then 
+		  buttonFrames[name]:resizeWindow()
+	       end
+	    end	    
+	 end
       else
 	 self:Show()
       end
@@ -1380,13 +1415,8 @@ function mod:SetupOptions()
 end
 
 function mod:ToggleConfigDialog(frame)
-   if frame then 
-      bin = frame:GetParent()
-      InterfaceOptionsFrame_OpenToCategory(mod.binopts)
-   else
-      InterfaceOptionsFrame_OpenToCategory(mod.profile)
-      InterfaceOptionsFrame_OpenToCategory(mod.main)
-   end
+   InterfaceOptionsFrame_OpenToCategory(mod.profile)
+   InterfaceOptionsFrame_OpenToCategory(mod.main)
 end
 
 function mod:ToggleCollapsed(frame)
@@ -1632,6 +1662,10 @@ do
       local iconWidth
       local hideIcon = mod:DataBlockConfig(self.name, "hideIcon", bdb.hideIcons)
       local showLabel = not mod:DataBlockConfig(self.name, "hideLabel", not bdb.showLabels)
+      if self:GetParent():GetAlpha() < 1.0 then
+	 self.label:Hide()
+	 return
+      end
       self.icon:ClearAllPoints()
       self.label:ClearAllPoints()
       
@@ -1817,8 +1851,10 @@ do
 	 f.button = self:GetFrame()
 	 f.button:SetParent(f)
 	 f.button:SetScript("OnClick", BB_OnClick)
-	 f.button:SetScript("OnEnter", LDB_OnEnter)
-	 f.button:SetScript("OnLeave", LDB_OnLeave)
+	 if not db.hideBinTooltip then
+	    f.button:SetScript("OnEnter", LDB_OnEnter)
+	    f.button:SetScript("OnLeave", LDB_OnLeave)
+	 end
 	 f.button.icon:SetTexture("Interface\\AddOns\\ButtonBin\\bin.tga")
 	 f.button.name = "ButtonBin"
 	 f.mover:Hide()
