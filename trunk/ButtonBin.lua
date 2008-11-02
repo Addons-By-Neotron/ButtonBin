@@ -150,20 +150,6 @@ local function PrepareTooltip(frame, anchorFrame, isGameTooltip)
    frame:SetPoint(a1, anchorFrame, a2)	
 end
 
-local function BB_OnClick(clickedFrame, button)
-   if button == "LeftButton" then
-      if IsAltKeyDown() then
-	 mod:ToggleButtonLock()
-      else
-	 mod:ToggleCollapsed(clickedFrame)
-      end
-   elseif button == "MiddleButton" then
-      mod:ToggleLocked()
-   elseif button == "RightButton" then
-      mod:ToggleConfigDialog(clickedFrame)
-   end
-end
-
 local function LDB_OnEnter(self, now)
    local obj = self.obj
    if obj.tooltip then
@@ -212,6 +198,28 @@ local function LDB_OnLeave(self)
    end
    if obj.OnLeave then
       obj.OnLeave(self)
+   end
+end
+
+local function LDB_OnClick(self, button)
+   if self._onclick then
+      LDB_OnLeave(self)
+      self._onclick(self, button)
+   end
+end
+
+local function BB_OnClick(self, button)
+   LDB_OnLeave(self)
+   if button == "LeftButton" then
+      if IsAltKeyDown() then
+	 mod:ToggleButtonLock()
+      else
+	 mod:ToggleCollapsed(self)
+      end
+   elseif button == "MiddleButton" then
+      mod:ToggleLocked()
+   elseif button == "RightButton" then
+      mod:ToggleConfigDialog(self)
    end
 end
 
@@ -281,7 +289,6 @@ function mod:LibDataBroker_DataObjectCreated(event, name, obj)
    if db.enabledDataObjects[name].enabled then
       mod:EnableDataObject(name, obj)
       local bdb = db.bins[buttonFrames[name].db.bin]
---      mod:Print("Enabled ", name, " in bin ", buttonFrames[name].db.bin)
       for _,bname in ipairs(bdb.sortedButtons) do
 	 if name == bname then
 	    return
@@ -330,7 +337,12 @@ local updaters = {
 	     end
 	  end,
    OnClick = function(frame, value)
-		frame:SetScript("OnClick", value)
+		frame._onclick = value
+		if value then
+		   frame:SetScript("OnClick", LDB_OnClick)
+		else
+		   frame:SetScript("OnClick", nil)
+		end
 	     end,
    tooltiptext = function(frame, value, name, object)
 		    local tt = object.tooltip or GameTooltip
@@ -466,7 +478,6 @@ function mod:ApplyProfile()
       self:LibDataBroker_DataObjectCreated(nil, name, obj)
    end
    for id,bin in ipairs(bins) do
---      mod:Print("Organizing bin ", id)
       if bin.mover:IsVisible() then
 	 mod:ToggleLocked()
       end
@@ -518,7 +529,6 @@ function mod:LoadPosition(bin)
 end
 
 function mod:OnProfileChanged(event, newdb, src)
---   mod:Print("Event = ", event, "newdb = ", newdb, "src=", src)
    if event ~= "OnProfileDeleted" then
       db = self.db.profile
 
@@ -532,7 +542,6 @@ function mod:OnProfileChanged(event, newdb, src)
 	 db.bins[1].hidden = false
       end
       for id,bdb in pairs(db.bins) do
---	 mod:Print("Creating bin frame ", id)
 	 mod:CreateBinFrame(id, bdb)
       end
       self:ApplyProfile()
@@ -678,13 +687,19 @@ options = {
 	    name = "You can override the bar level configuration in this section. Note that when enabled, these settings will always override the settings of the individual bins.",
 	    order = 0,
 	 },
+	 enabled = {
+	    type="toggle",
+	    name = "Enabled",
+	    desc = "Toggle to enable display of this datablock.",
+	    order = 1,
+	 },
 	 blockOverride = {
 	    type = "toggle",
 	    name = "Override bin config",
 	    desc = "If override is enabled, the settings here are used over the bin level configuration. Otherwise the block will be displayed as per the bin settings.",
-	    order = 1,
+	    order = 2,
+	    hidden = "HideOverrideConfig",
 	 },
-	 
 	 hideIcon = {
 	    type = "toggle",
 	    name = "Hide icon",
@@ -1005,35 +1020,6 @@ options = {
       args = {
       }
    },
-   objects = {
-      name = "Enabled Data Objects",
-      type = "group",
-      args = {
-	 objs = {
-	    name = "",
-	    type = "multiselect",
-	    values = function()
-			local tbl = {}
-			for name in pairs(db.enabledDataObjects) do
-			   if LDB:GetDataObjectByName(name) then
-			      tbl[name] = name
-			   end
-			end
-			return tbl
-		     end,
-	    get = function(_,key)  return db.enabledDataObjects[key].enabled end,
-	    set = function(_,key,state)
-		     db.enabledDataObjects[key].enabled = state
-		     if state then
-			mod:LibDataBroker_DataObjectCreated("config", key,
-							    LDB:GetDataObjectByName(key))
-		     else
-			mod:DisableDataObject(key)
-		     end
-		  end
-	       }
-      }
-   },
    cmdline = {
       name = "Command Line",
       type = "group",
@@ -1072,22 +1058,37 @@ end
 
 function mod:SetDataBlockOption(info, val)
    local var  = info[#info]
-   local name = options.objconfig.args[info[#info - 1]].name
+   local name = options.objconfig.args[info[#info - 1]].desc
    db.enabledDataObjects[name][var] = val
    if buttonFrames[name] then
       buttonFrames[name]:resizeWindow(true)
    end
+   if var == "enabled" then
+      if val then
+	 mod:LibDataBroker_DataObjectCreated("config", name,
+					     LDB:GetDataObjectByName(name))
+      else
+	 mod:DisableDataObject(name)
+      end
+   end
+   
+   mod:SetupDataBlockOptions(true)
 end
 
 function mod:GetDataBlockOption(info)
    local var  = info[#info]
-   local name = options.objconfig.args[info[#info - 1]].name
+   local name = options.objconfig.args[info[#info - 1]].desc
    return db.enabledDataObjects[name][var]
 end
 
+function mod:HideOverrideConfig(info)
+   local name = options.objconfig.args[info[#info - 1]].desc
+   return not db.enabledDataObjects[name].enabled
+end
 function mod:HideDataBlockOptions(info)
-   local name = options.objconfig.args[info[#info - 1]].name
-   return not db.enabledDataObjects[name].blockOverride
+   local name = options.objconfig.args[info[#info - 1]].desc
+   return not db.enabledDataObjects[name].blockOverride or
+      mod:HideOverrideConfig(info)
 end
 
 function mod:GetOption(info)
@@ -1312,6 +1313,9 @@ function mod:SetupBinOptions(reload)
    end
 end
 
+local disabled = "|cff999999%s|r"
+local override = "|cffffff00%s|r"
+--local enabled = "|cff00cf00%s|r"
 
 function mod:SetupDataBlockOptions(reload)
 
@@ -1321,21 +1325,40 @@ function mod:SetupDataBlockOptions(reload)
    local used = {}
    if reload then
       for id,data in pairs(conf) do
-	 mod:Print("Saving ", data.name, " from index ", id)
-	 used[data.name] = data
+	 used[data.desc] = data
 	 conf[id] = nil
       end
    end
-   for name,data in pairs(db.enabledDataObjects) do
-      if data.enabled and LDB:GetDataObjectByName(name) then
+
+   -- sort by name
+   local sorted = {}
+   for name in pairs(db.enabledDataObjects) do
+      sorted[#sorted+1] = name
+   end
+   tsort(sorted)
+   
+   --
+   for _,name in ipairs(sorted) do
+      local data = db.enabledDataObjects[name]
+      if LDB:GetDataObjectByName(name) then
 	 local obj = used[name]
 	 if not obj then 
 	    obj = {}
 	    for key, val in pairs(options.dataBlock) do
 	       obj[key] = val
 	    end
-	    obj.name = name
 	 end
+	 if data.enabled then
+	    if db.enabledDataObjects[name].blockOverride then
+	       obj.name = override:format(name)
+	    else
+	       obj.name = name
+	    end
+	 else
+	    obj.name = disabled:format(name)
+	 end
+	 obj.desc = name
+	 obj.order = counter
 	 conf[tostring(counter)] = obj
 	 counter = counter + 1
       end
@@ -1344,7 +1367,6 @@ function mod:SetupDataBlockOptions(reload)
    if reload then
       R:NotifyChange("Button Bin: Data Block Configuration")
    else
-      mod:OptReg(": Data Blocks", options.objects, "Data Blocks")
       mod:OptReg(": Data Block Config", options.objconfig, "Data Block Configuration")
    end
 end
@@ -1499,9 +1521,9 @@ do
    local numBlocks = 1      
    local oldSorted
    
-   local function Button_OnDragStart()
+   local function Button_OnDragStart(self)
       local toRemove
-      local bin = this:GetParent()
+      local bin = self:GetParent()
       local bdb = db.bins[bin.binId]
       local newSorted = {}
       for id, name in pairs(bdb.sortedButtons) do
@@ -1518,8 +1540,8 @@ do
       this:SetFrameLevel(100)
    end
    
-   local function Button_OnDragStop()
-      local bin = this:GetParent()
+   local function Button_OnDragStop(self)
+      local bin = self:GetParent()
       local bdb = db.bins[bin.binId]
       local destFrame, destParent
       this:StopMovingOrSizing()
