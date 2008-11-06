@@ -227,7 +227,6 @@ function mod:OnInitialize()
    self.db = LibStub("AceDB-3.0"):New("ButtonBinDB", defaults, "Default")
    self.db.RegisterCallback(self, "OnProfileChanged", "OnProfileChanged")
    self.db.RegisterCallback(self, "OnProfileCopied", "OnProfileChanged")
-   self.db.RegisterCallback(self, "OnProfileDeleted","OnProfileChanged")
    self.db.RegisterCallback(self, "OnProfileReset", "OnProfileChanged")
    db = self.db.profile
 
@@ -529,24 +528,21 @@ function mod:LoadPosition(bin)
 end
 
 function mod:OnProfileChanged(event, newdb, src)
-   if event ~= "OnProfileDeleted" then
-      db = self.db.profile
-
-      for id,frame in ipairs(bins) do
-	 mod:ReleaseBinFrame(frame)
-      end
-      if event == "OnProfileReset" then
-	 for id,frame in ipairs(bins) do
-	    db.bins[id] = nil
-	 end
-	 db.bins[1].hidden = false
-      end
-      for id,bdb in pairs(db.bins) do
-	 mod:CreateBinFrame(id, bdb)
-      end
-      self:ApplyProfile()
-      self:SetupBinOptions(true)
+   db = self.db.profile
+   for id,frame in ipairs(bins) do
+      mod:ReleaseBinFrame(frame)
    end
+   if event == "OnProfileReset" or #db.bins == 0 then
+      for id,frame in ipairs(bins) do
+	 db.bins[id] = nil
+      end
+      db.bins[1].hidden = false
+   end
+   for id,bdb in pairs(db.bins) do
+      mod:CreateBinFrame(id, bdb)
+   end
+   self:ApplyProfile()
+   self:SetupBinOptions(true)
 end
 
 function mod:ToggleLocked()
@@ -1658,13 +1654,15 @@ do
    end
    
    local function Frame_ResizeWindow(self, dontShow)
-      local bdb,sdb,dbs = mod:GetBinSettings(self:GetParent())
-      local iconWidth
+      local parent = self:GetParent()
+      local bdb,sdb,dbs = mod:GetBinSettings(parent)
+      local iconWidth, width
       local hideIcon = mod:DataBlockConfig(self.name, "hideIcon", bdb.hideIcons)
       local showLabel = not mod:DataBlockConfig(self.name, "hideLabel", not bdb.showLabels)
-      if self:GetParent():GetAlpha() < 1.0 then
+      if parent:GetAlpha() < 1.0 then
 	 self.label:Hide()
 	 return
+
       end
       self.icon:ClearAllPoints()
       self.label:ClearAllPoints()
@@ -1692,10 +1690,6 @@ do
       
       if not dontShow then self:Show() end
 
-
-      
-      
-      local width
       if showLabel and (not bdb.labelOnMouse or self._isMouseOver) then
 	 if bdb.font and bdb.fontsize then
 	    self.label:SetFont(media:Fetch("font", bdb.font), bdb.fontsize)
@@ -1725,7 +1719,7 @@ do
       if bdb.labelOnMouse then
 	 local oldWidth = self:GetWidth(self)
 	 if oldWidth ~= width then
-	    local bin = self:GetParent()
+	    local bin = parent
 	    bin:SetWidth(bin:GetWidth() - oldWidth + width)
 	 end
       end
