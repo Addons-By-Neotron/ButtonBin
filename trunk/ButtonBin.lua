@@ -2,7 +2,8 @@
 **********************************************************************
 ButtonBin - A displayer for LibDataBroker compatible addons
 **********************************************************************
-Code inspired by and copied from Fortress by Borlox
+Some code from Fortress was used in this addon with permission from the
+author Borlox.
 **********************************************************************
 ]]
 ButtonBin = LibStub("AceAddon-3.0"):NewAddon("ButtonBin", "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0" )
@@ -14,6 +15,7 @@ local R = LibStub("AceConfigRegistry-3.0")
 
 local BB_DEBUG = false
 
+local Logger = LibStub("LibLogger-1.0", true)
 local C = LibStub("AceConfigDialog-3.0")
 local DBOpt = LibStub("AceDBOptions-3.0")
 local media = LibStub("LibSharedMedia-3.0")
@@ -42,6 +44,19 @@ local db
 local unlockButtons = false
 local unlockFrames = false
 local playerInCombat = false
+
+if Logger then
+   Logger:Embed(mod)
+else
+   -- Enable info messages
+   mod.info = function(self, ...) mod:Print(fmt(...)) end
+   mod.error = info
+   mod.warn = info
+   -- But disable debugging
+   mod.debug = function(self, ...) end
+   mod.trace = mod.debug
+   mod.spam = mod.debug
+end
 
 function mod.clear(tbl)
    if type(tbl) == "table" then
@@ -279,7 +294,8 @@ do
       else
 	 f.button.buttonBinText = nil
       end
-      f:ShowOrHide()
+      --      f._isMouseOver = true
+      mod:SortFrames(f)
    end
 end
 
@@ -322,7 +338,12 @@ local updaters = {
 	     frame.shortButtonText = shortText
 	     
 	     if not delay then
+		local w = frame:GetWidth()
 		frame:resizeWindow(true)
+		w = w - frame:GetWidth()
+		if w > 0 or w < -10 then
+		   mod:SortFrames(frame:GetParent())
+		end
 	     end
 	  end,	
    icon = function(frame, value, name, delay)
@@ -331,7 +352,11 @@ local updaters = {
 	     if has_texture ~= frame._has_texture then
 		frame._has_texture = has_texture
 		if not delay then
-		   frame:resizeWindow(true)
+		   if has_texture then
+		      mod:SortFrames(frame:GetParent()) -- we grew
+		   else
+		      frame:resizeWindow(true)
+		   end
 		end
 	     end
 	  end,
@@ -1148,6 +1173,27 @@ function binMetaTable:FixBackdrop()
    self:SetBackdropBorderColor(unpack(bdb.colors.borderColor))
 end
 
+local function ShowOrHideOnMouseover(self, bdb)
+   self:Show()
+   if not self._isMouseOver then
+      self:SetAlpha(0.0)
+      for _,name in ipairs(bdb.sortedButtons) do
+	 if buttonFrames[name] then 
+	    buttonFrames[name]:Hide()
+	 end
+      end      
+   else
+      self.button:resizeWindow()
+      if not bdb.collapsed then
+	 for _,name in ipairs(bdb.sortedButtons) do
+	    if buttonFrames[name] then 
+	       buttonFrames[name]:resizeWindow()
+	    end
+	 end
+      end
+   end
+end
+
 function binMetaTable:ShowOrHide(timer)
    local bdb = db.bins[self.binId]
    if timer and bdb.hideTimeout > 0 then
@@ -1166,28 +1212,12 @@ function binMetaTable:ShowOrHide(timer)
       elseif bdb.visibility == "inCombat" then
 	 if playerInCombat then self:Show() else self:Hide() end
       elseif bdb.visibility == "mouse" then
-	 self:Show()
-	 if not self._isMouseOver then
-	    self:SetAlpha(0.0)
-	 end
-	 for _,name in ipairs(bdb.sortedButtons) do
-	    if buttonFrames[name] then 
-	       buttonFrames[name]:resizeWindow()
-	    end
-	 end
+	 ShowOrHideOnMouseover(self, bdb)
       elseif bdb.visibility == "mouseNoCombat" then
 	 if playerInCombat then
 	    self:Hide()
 	 else
-	    self:Show()
-	    if not self._isMouseOver then
-	       self:SetAlpha(0.0)
-	    end
-	    for _,name in ipairs(bdb.sortedButtons) do
-	       if buttonFrames[name] then 
-		  buttonFrames[name]:resizeWindow()
-	       end
-	    end	    
+	    ShowOrHideOnMouseover(self, bdb)
 	 end
       else
 	 self:Show()
@@ -1420,6 +1450,7 @@ function mod:ToggleCollapsed(frame)
    bin = frame:GetParent()
    bdb = db.bins[bin.binId]
    bdb.collapsed = not bdb.collapsed
+   bin._isMouseOver = true
    mod:SortFrames(bin)
 end
 
