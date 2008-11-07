@@ -50,10 +50,14 @@ if Logger then
 else
    -- Enable info messages
    mod.info = function(self, ...) mod:Print(fmt(...)) end
-   mod.error = info
-   mod.warn = info
+   mod.error = mod.info
+   mod.warn = mod.info
    -- But disable debugging
-   mod.debug = function(self, ...) end
+   if BB_DEBUG then
+      mod.debug = mod.info
+   else
+      mod.debug = function(self, ...) end
+   end
    mod.trace = mod.debug
    mod.spam = mod.debug
 end
@@ -244,6 +248,10 @@ function mod:OnInitialize()
    self.db.RegisterCallback(self, "OnProfileCopied", "OnProfileChanged")
    self.db.RegisterCallback(self, "OnProfileReset", "OnProfileChanged")
    db = self.db.profile
+   
+   if self.SetLogLevel and BB_DEBUG then
+      mod:SetLogLevel(self.logLevels.TRACE)
+   end
 
    options.profile = DBOpt:GetOptionsTable(self.db)
 
@@ -1465,7 +1473,6 @@ end
 
 function mod:SortFrames(bin)
    if not bin or bin.disabled then return end
-   
    local bdb,sdb = mod:GetBinSettings(bin)
    local sizeOptions
    local xoffset = 0
@@ -1747,9 +1754,9 @@ do
 	 self.label:Hide()
 	 width = iconWidth
       end
-      if bdb.labelOnMouse then
+      if bdb.labelOnMouse and showLabel then
 	 local oldWidth = self:GetWidth(self)
-	 if oldWidth ~= width then
+	 if oldWidth > 0 and  oldWidth ~= width then
 	    local bin = parent
 	    bin:SetWidth(bin:GetWidth() - oldWidth + width)
 	 end
