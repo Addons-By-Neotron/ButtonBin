@@ -352,10 +352,15 @@ function mod:LibDataBroker_DataObjectCreated(event, name, obj)
       bdb.sortedButtons[#bdb.sortedButtons+1] = name
    end
 end
+blockOverride = true
+hideAll = false
 
 local function TextUpdater(frame, value, name, obj, delay)
    local bdb,sdb = mod:GetBinSettings(frame:GetParent())
-   if bdb.hideAllText then
+   
+   if mod:DataBlockConfig(name, "hideLabel", bdb.hideAllText) and
+      mod:DataBlockConfig(name, "hideText",  bdb.hideAllText) and
+      mod:DataBlockConfig(name, "hideValue", bdb.hideAllText) then
       frame.buttonBinText = nil
    else
       local showLabel = not mod:DataBlockConfig(name, "hideLabel", bdb) 
