@@ -105,37 +105,45 @@ local defaults = {
 	    colors = {
 	       backgroundColor = { 0, 0, 0, 0.5},
 	       borderColor = { 0.88, 0.88, 0.88, 0.8 },
+	       labelColor  = { 1, 1, 1 },
+	       textColor   = { 1, 1, 1 },
+	       unitColor   = { 1, 1, 1 },			
+	       valueColor   = { 0.9, 0.9, 0 },			
 	    },
-	    edgeSize = 10,
-	    size = 24,
-	    scale = 1.0,
-	    width  = 20,
-	    hpadding = 0.5,
-	    vpadding = 0.5,
+	    background = "Solid",
+	    binLabel = true,
+	    border = "None",
+	    clampToScreen = true,
 	    collapsed = false,
-	    useGlobal = true,
+	    edgeSize = 10,
 	    flipx = false,
 	    flipy = false,
-	    tooltipScale = 1.0,
-	    hideEmpty = true,
-	    sortedButtons = {},
-	    hidden = true, 
-	    labelOnMouse = false,
-	    binLabel = true,
-	    showLabels = true,
-	    visibility = "always",
-	    hideTimeout = 2,
-	    border = "None",
-	    background = "Solid",
-	    fontsize = 12,
-	    pixelwidth = 0,
-	    clampToScreen = true,
 	    font = "Friz Quadrata TT",
+	    fontsize = 12,
+	    hidden = true, 
+	    hideAllText = false,
+	    hideEmpty = true,
+	    hideLabel = true,
+	    hideTimeout = 2,
+	    hpadding = 0.5,
+	    labelOnMouse = false,
+	    pixelwidth = 0,
+	    scale = 1.0,
+	    size = 24,
+	    sortedButtons = {},
+	    tooltipScale = 1.0,
+	    useGlobal = true,
+	    visibility = "always",
+	    vpadding = 0.5,
+	    width  = 20,
 	 }
       },
    }
 }
 
+local function ColorToHex(c)
+   return ("%02x%02x%02x"):format(c[1]*255, c[2]*255, c[3]*255)
+end
 
 local GameTooltip = GameTooltip
 local function GT_OnLeave(self)
@@ -184,7 +192,7 @@ local function PrepareTooltip(frame, anchorFrame, isGameTooltip)
 end
 
 local tablet
-local function LDB_OnEnter(self, now)
+local function LDB_OnEnter(self, ...)
    local obj = self.obj
    if obj.tooltip then
       PrepareTooltip(obj.tooltip, self)
@@ -207,7 +215,7 @@ local function LDB_OnEnter(self, now)
       self.hideTooltipOnLeave = true
    end
    if obj.OnEnter then
-      obj.OnEnter(self)
+      obj.OnEnter(self, ...)
       -- Attempt to scale tooltip even though we didn't open it
       -- This only works if the addon used a GameTooltip.
       if GameTooltip:GetOwner() == self then
@@ -222,7 +230,7 @@ local function LDB_OnEnter(self, now)
    bin:ShowOrHide()
 end
 
-local function LDB_OnLeave(self)
+local function LDB_OnLeave(self, ...)
    local obj = self.obj
    local bin = self:GetParent()
    self._isMouseOver = nil
@@ -240,14 +248,14 @@ local function LDB_OnLeave(self)
       self.hideTooltipOnLeave = nil
    end
    if obj.OnLeave then
-      obj.OnLeave(self)
+      obj.OnLeave(self, ...)
    end
 end
 
-local function LDB_OnClick(self, button)
+local function LDB_OnClick(self, ...)
    if self._onclick then
       LDB_OnLeave(self)
-      self._onclick(self, button)
+      self._onclick(self, ...)
    end
 end
 
@@ -345,39 +353,61 @@ function mod:LibDataBroker_DataObjectCreated(event, name, obj)
    end
 end
 
+local function TextUpdater(frame, value, name, obj, delay)
+   local bdb,sdb = mod:GetBinSettings(frame:GetParent())
+   if bdb.hideAllText then
+      frame.buttonBinText = nil
+   else
+      local showLabel = not mod:DataBlockConfig(name, "hideLabel", bdb) 
+      local showText  = not mod:DataBlockConfig(name, "hideText",  bdb) 
+      local showValue = not mod:DataBlockConfig(name, "hideValue", bdb) 
+      
+      local labelColor = ColorToHex(bdb.colors.labelColor)
+      local textColor = ColorToHex(bdb.colors.textColor)
+      local unitColor = ColorToHex(bdb.colors.unitColor)
+      local valueColor = ColorToHex(bdb.colors.valueColor)
+      
+      local text
+      
+      if showLabel and obj.label then  -- try to show the label
+	 if showValue and obj.value then
+	    text = fmt("|cff%s%s:|r |cff%s|r|cff%s%s|r", labelColor, obj.label,
+		       valueColor, obj.value, unitColor, obj.suffix or "")
+	    
+	 elseif showText and obj.text and obj.text ~= obj.label then
+	    text = fmt("|cff%s%s:|r |cff%s%s|r",
+		       labelColor, obj.label, textColor, obj.text)
+	    
+	 else	
+	    text = fmt("|cff%s%s|r", labelColor, obj.label)
+	 end
+      elseif showLabel and type == "launcher" then
+	 -- show the addonname for launchers if no label is set
+	 local addonName, addonTitle = GetAddOnInfo(obj.tocname or name)
+	 text = fmt("|cff%s%s|r", labelColor, addonTitle or addonName or name)
+      elseif showText and obj.text then
+	 if showValue and obj.value then
+	    text = fmt("|cff%s%s|cff%s%s|r", valueColor,
+		       obj.value, unitColor, obj.suffix or "")
+	 else
+	    text = fmt("|cff%s%s|r", textColor, obj.text)
+	 end
+      end
+      frame.buttonBinText = text
+   end
+   if not delay then
+      local w = frame:GetWidth()
+      frame:resizeWindow(true)
+      w = w - frame:GetWidth()
+      if w > 0 or w < -10 then
+	 mod:SortFrames(frame:GetParent())
+      end
+   end
+end
+
 local updaters = {
-   text = function(frame, value, name, object, delay)
-	     local bdb = db.bins[frame.db.bin]
-	     local text, shortText
-	     if type(object.label) == "string" then
-		if object.value and (type(object.value) == "string" or type(object.value) == "number") then
-		   text = fmt("|cffffffff%s:|r %s|cffffffff%s|r", object.label, object.value, ((type(object.suffix) == "string" or type(object.suffix) == "number") and object.suffix) or "")
-		elseif object.text and object.text ~= object.label and string.find(object.text, "%S") then
-		   text = fmt("|cffffffff%s:|r %s", object.label, object.text)
-		else
-		   text = fmt("|cffffffff%s|r", object.label)
-		end
-	     end
-	     if object.value and (type(object.value) == "string" or type(object.value) == "number") then
-		shortText = fmt("%s|cffffffff%s|r", object.value, ((type(object.suffix) == "string" or type(object.suffix) == "number") and object.suffix) or "")
-	     elseif object.text then
-		shortText = object.text
-	     elseif object.type and object.type == "launcher" then
-		local addonName, title = GetAddOnInfo(object.tocname or name)
-		shortText = fmt("|cffffffff%s|r", title or addonName or name)
-	     end
-	     frame.buttonBinText = text
-	     frame.shortButtonText = shortText
-	     
-	     if not delay then
-		local w = frame:GetWidth()
-		frame:resizeWindow(true)
-		w = w - frame:GetWidth()
-		if w > 0 or w < -10 then
-		   mod:SortFrames(frame:GetParent())
-		end
-	     end
-	  end,	
+   text   = TextUpdater,   value  = TextUpdater,
+   suffix = TextUpdater,   label  = TextUpdater,
    icon = function(frame, value, name, delay)
 	     frame.icon:SetTexture(value)
 	     local has_texture = not not value
@@ -429,14 +459,11 @@ function mod:EnableDataObject(name, obj)
    if not frame.db.bin then
       frame.db.bin = 1
    end
-   mod:Print("Enabling "..name.." in bin "..frame.db.bin.. " = "..tostring(obj.text))
    frame:SetParent(bins[frame.db.bin])
    frame:SetScript("OnEnter", LDB_OnEnter)
    frame:SetScript("OnLeave", LDB_OnLeave)
    
-   for key, func in pairs(updaters) do
-      func(frame, obj[key], name, obj, true) 
-   end	
+   mod:UpdateBlock(name, frame, true) 
 
    LDB.RegisterCallback(self, "LibDataBroker_AttributeChanged_"..name, "AttributeChanged")
    mod:SortFrames(frame:GetParent())
@@ -511,6 +538,36 @@ do
    end
 end
 
+-- Migrate settings
+
+do
+   local migrated = {
+      shortLabels = "hideLabel"
+   }
+   local migratedobj = {
+   }
+   function mod:ConvertBinOptions(bin)
+      if bin.showLabels ~= nil then
+	 bin.hideAllText = not bin.showLabels
+	 bin.showLabels = nil
+      end
+      for from,to in pairs(migrated) do
+	 if bin[from] ~= nil then
+	    bin[to] = bin[from]
+	    bin[from] = nil
+	 end
+      end
+   end
+   function mod:ConvertBlockOptions(obj)
+      for from,to in pairs(migratedobj) do
+	 if obj[from] ~= nil then
+	    obj[to] = obj[from]
+	    obj[from] = nil
+	 end
+      end
+   end
+end
+
 function mod:ApplyProfile()
    -- clean stuff up
    for id,bin in ipairs(db.bins) do
@@ -524,9 +581,13 @@ function mod:ApplyProfile()
 	    end
 	 end
       end
+      mod:ConvertBinOptions(bin)
       bin.sortedButtons = newButtons
    end
-	 
+
+   for id, obj in pairs(db.enabledDataObjects) do
+      mod:ConvertBlockOptions(obj)
+   end
    for _,frame in pairs(buttonFrames) do
       mod:ReleaseFrame(frame)
    end
@@ -670,6 +731,7 @@ function mod:ReloadFrame(bin)
       bin.button:SetScript("OnEnter", nil)      
       bin.button:SetScript("OnLeave", nil)
    end
+   mod:UpdateAllBlocks(bin)
    mod:SavePosition(bin)
    mod:LoadPosition(bin)
    if wasUnlocked then mod:ToggleLocked() end
@@ -787,6 +849,18 @@ options = {
 	    desc = "Hide the label for this datablock", 	
 	    hidden = "HideDataBlockOptions"
 	 },
+	 hideText = {
+	    type = "toggle",
+	    name = "Hide text",
+	    desc = "Hide the text for this data block.",
+	    hidden = "HideDataBlockOptions",
+	 },
+	 hideValue = {
+	    type = "toggle",
+	    name = "Hide values",
+	    desc = "Hide the value for this data block.",
+	    hidden = "HideDataBlockOptions",
+	 },
 	 tooltipScale = {
 	    type = "range",
 	    name = "Tooltip Scale",
@@ -879,40 +953,6 @@ options = {
 		  order = 31,
 		  disabled = "DisableLabelOption",
 	       },
-	       headerLabels = {
-		  type = "header",
-		  name = "Labels",
-		  order = 35,
-	       },
-	       showLabels = {
-		  width = "full",
-		  type = "toggle",
-		  name = "Show labels",
-		  order = 40,
-	       },
-	       binLabel = {
-		  type = "toggle",
-		  width = "full",
-		  name = "Show button bin label",
-		  order = 50,
-		  disabled = "DisableBinLabelOption",
-	       },
-	       labelOnMouse = {
-		  width = "full",
-		  type = "toggle",
-		  name = "Show label only on mouse over",
-		  desc = "Don't show any labels unless the cursor is hovering over the button.",
-		  order = 55,
-		  disabled = "DisableLabelOption",
-	       },
-	       shortLabels = {
-		  width = "full",
-		  type = "toggle",
-		  name = "Show short text",
-		  desc = "Only show the value text, not the labels.",
-		  order = 70,
-		  disabled = "DisableLabelOption",
-	       },
 	       headerVisibility = {
 		  type = "header",
 		  name = "Visibility",
@@ -940,6 +980,86 @@ options = {
 	       },
 
 	    }
+	 },
+	 colors = {
+	    type = "group",
+	    name = "Text Colors",
+	    set = "SetColorOpt",
+	    get = "GetColorOpt",
+	    args = {
+	       labelColor = {
+		  type = "color",
+		  name = "Label color",
+		  hasAlpha = false,
+	       },
+	       textColor = {
+		  type = "color",
+		  name = "Text color",
+		  hasAlpha = false,
+	       },
+	       unitColor = {
+		  type = "color",
+		  name = "Unit color",
+		  hasAlpha = false,
+	       },
+	       valueColor = {
+		  type = "color",
+		  name = "Value color",
+		  hasAlpha = false,
+	       },
+	    }
+	 },
+	 labels = {
+	    type = "group",
+	    name = "Text Labels",
+	    args = {
+	       hideAllText = {
+		  width = "full",
+		  type = "toggle",
+		  name = "Hide all text",
+		  desc = "Hide all text, showing only the icons.",
+		  order = 40,
+	       },
+	       binLabel = {
+		  type = "toggle",
+		  width = "full",
+		  name = "Show label for the ButtonBin icon ",
+		  order = 50,
+		  disabled = "DisableBinLabelOption",
+	       },
+	       labelOnMouse = {
+		  width = "full",
+		  type = "toggle",
+		  name = "Show text only on mouse over",
+		  desc = "Don't show any datablock text unless the cursor is hovering over it.",
+		  order = 80,
+		  disabled = "DisableLabelOption",
+	       },
+	       hideLabel = {
+		  width = "full",
+		  type = "toggle",
+		  name = "Hide labels",
+		  desc = "Hide the data block labels.",
+		  order = 70,
+		  disabled = "DisableLabelOption",
+	       },
+	       hideText = {
+		  width = "full",
+		  type = "toggle",
+		  name = "Hide text",
+		  desc = "Hide the data block text.",
+		  order = 70,
+		  disabled = "DisableLabelOption",
+	       },
+	       hideValue = {
+		  width = "full",
+		  type = "toggle",
+		  name = "Hide values",
+		  desc = "Hide the data block values.",
+		  order = 70,
+		  disabled = "DisableLabelOption",
+	       },
+	    },
 	 },
 	 lookandfeel = {
 	    type = "group",
@@ -1153,7 +1273,9 @@ function mod:SetDataBlockOption(info, val)
    local var  = info[#info]
    local name = options.objconfig.args[info[#info - 1]].desc
    db.enabledDataObjects[name][var] = val
+
    if buttonFrames[name] then
+      mod:UpdateBlock(name)
       buttonFrames[name]:resizeWindow(true)
    end
    if var == "enabled" then
@@ -1164,7 +1286,6 @@ function mod:SetDataBlockOption(info, val)
 	 mod:DisableDataObject(name)
       end
    end
-   
    mod:SetupDataBlockOptions(true)
 end
 
@@ -1252,6 +1373,7 @@ end
 
 function binMetaTable:ShowOrHide(timer, onenter)
    local bdb = db.bins[self.binId]
+   local forceShow = false
    if timer and bdb.hideTimeout > 0 then
       if binTimers[self.binId] then
 	 mod:CancelTimer(binTimers[self.binId], true)
@@ -1261,13 +1383,23 @@ function binMetaTable:ShowOrHide(timer, onenter)
       self:SetAlpha(1.0)
       if unlockButtons or unlockFrames then
 	 self:Show()
-	 ShowOrHideOnMouseover(self, bdb, true)
+	 forceShow = true
       elseif bdb.hidden then
 	 self:Hide()
       elseif bdb.visibility == "noCombat" then
-	 if playerInCombat then self:Hide() else self:Show() end
+	 if playerInCombat then
+	    self:Hide()
+	 else
+	    self:Show()
+	    forceShow = true
+	 end
       elseif bdb.visibility == "inCombat" then
-	 if playerInCombat then self:Show() else self:Hide() end
+	 if playerInCombat then
+	    forceShow = true
+	    self:Show()
+	 else
+	    self:Hide()
+	 end
       elseif bdb.visibility == "mouse" then
 	 ShowOrHideOnMouseover(self, bdb)
       elseif bdb.visibility == "mouseNoCombat" then
@@ -1278,7 +1410,11 @@ function binMetaTable:ShowOrHide(timer, onenter)
 	 end
       else
 	 self:Show()
+	 forceShow = true
       end
+   end
+   if forceShow then
+      ShowOrHideOnMouseover(self, bdb, true)
    end
    if onenter and self:IsVisible() and self:GetAlpha() > 0 then
       mod:SortFrames(self)
@@ -1294,6 +1430,7 @@ function binMetaTable:SetColorOpt(arg, r, g, b, a)
    bdb.colors[color][3] = b
    bdb.colors[color][4] = a
    self:FixBackdrop()
+   mod:UpdateAllBlocks(self)
 end
 
 function binMetaTable:GetColorOpt(arg)
@@ -1304,17 +1441,17 @@ end
 
 function binMetaTable:DisableLabelOption(info)
    local bdb = db.bins[self.binId]
-   return not bdb.showLabels
+   return bdb.hideAllText
 end
 
 function binMetaTable:DisableHideIconOption(info)
    local bdb = db.bins[self.binId]
-   return not (bdb.showLabels or not bdb.labelOnMouse)
+   return bdb.hideAllText or bdb.labelOnMouse
 end
 
 function binMetaTable:DisableBinLabelOption(info)
    local bdb = db.bins[self.binId]
-   return not bdb.showLabels or bdb.hideBinIcon
+   return bdb.hideAllText or bdb.hideBinIcon
 end
 
 function binMetaTable:DisableHideOption(info)
@@ -1432,6 +1569,32 @@ function mod:SetupBinOptions(reload)
    else
       mod.binopts = mod:OptReg(": Bins", options.bins, "Bins")
    end
+end
+
+do
+   local updateOnce  = { value=true, suffix=true, label=true, text=true }
+   function mod:UpdateBlock(name, frame, delay)
+      frame = frame or buttonFrames[name]
+      local updated, uonce
+      if frame then
+	 local obj = ldbObjects[name]
+	 for key, func in pairs(updaters) do
+	    uonce = updateOnce[key]
+	    if not uonce or not updated then
+	       func(frame, obj[key], name, obj, delay)
+	    end
+	    updated = uonce or updated
+	 end
+      end
+   end
+end
+
+function mod:UpdateAllBlocks(name, parent)
+   for name,frame in pairs(buttonFrames) do
+      if not parent or  frame:GetParent() == parent then
+	 mod:UpdateBlock(name, frame)
+      end
+   end	   
 end
 
 local disabled = "|cff999999%s|r"
@@ -1709,8 +1872,8 @@ do
 		  if x > midpoint then add = 1 end
 	       else
 		  if x < midpoint then add = 1 end
-	       end
-	    end
+	       end	
+    end
 	    
 	    --	 mod:Print("x = "..x..", mid = "..midpoint.."...")
 	    for id,n in pairs(bdb.sortedButtons) do
@@ -1739,7 +1902,11 @@ do
    function mod:DataBlockConfig(name, var, global) 
       local bcfg = db.enabledDataObjects[name]
       if not bcfg or not bcfg.blockOverride then
-	 return global
+	 if type(global) == "table" then
+	    return global[var]
+	 else
+	    return global
+	 end
       end
       return bcfg[var]
    end
@@ -1749,7 +1916,7 @@ do
       local bdb,sdb,dbs = mod:GetBinSettings(parent)
       local iconWidth, width
       local hideIcon = mod:DataBlockConfig(self.name, "hideIcon", bdb.hideIcons)
-      local showLabel = not mod:DataBlockConfig(self.name, "hideLabel", not bdb.showLabels)
+      local showLabel = not not self.buttonBinText
       if parent:GetAlpha() < 1.0 then
 	 self.label:Hide()
 	 return
@@ -1784,11 +1951,7 @@ do
 	 if bdb.font and bdb.fontsize then
 	    self.label:SetFont(media:Fetch("font", bdb.font), bdb.fontsize)
 	 end
-	 if bdb.shortLabels then
-	    self.label:SetText(self.shortButtonText or self.buttonBinText)
-	 else
-	    self.label:SetText(self.buttonBinText or self.shortButtonText)
-	 end	
+	 self.label:SetText(self.buttonBinText)
 	 width = self.label:GetStringWidth()
 	 if width > 0 then
 	    self.label:SetWidth(width)
