@@ -90,11 +90,13 @@ local defaults = {
       -- TBD
       enabledDataObjects = {
 	 ['*'] = {
-	    enabled = true
+	    enabled = true,
+	    tooltipScale = 1.0,
 	 },
       },
       size = 24,
       scale = 1.0,
+      tooltipScale = 1.0,
       width  = 20,
       hpadding = 0.5,
       vpadding = 0.5,
@@ -114,6 +116,7 @@ local defaults = {
 	    useGlobal = true,
 	    flipx = false,
 	    flipy = false,
+	    tooltipScale = 1.0,
 	    hideEmpty = true,
 	    sortedButtons = {},
 	    hidden = true, 
@@ -138,6 +141,7 @@ local GameTooltip = GameTooltip
 local function GT_OnLeave(self)
    self:SetScript("OnLeave", self.oldOnLeave)
    self.oldOnLeave = nil
+   self:SetScale(1.0)
    self:Hide()
    GameTooltip:EnableMouse(false)
 end
@@ -157,6 +161,15 @@ local function getAnchors(frame)
    end
 end
 
+local function SetTooltipScale(tooltip, frame)
+   local bdb,sdb = mod:GetBinSettings(frame:GetParent())
+   
+   local tooltipScale =
+      mod:DataBlockConfig(frame.name, "tooltipScale",
+			  sdb.tooltipScale)
+   tooltip:SetScale(tooltipScale or 1.0)
+end
+
 local function PrepareTooltip(frame, anchorFrame, isGameTooltip)
    if frame == GameTooltip then
       frame.oldOnLeave = frame:GetScript("OnLeave")
@@ -166,9 +179,11 @@ local function PrepareTooltip(frame, anchorFrame, isGameTooltip)
    frame:SetOwner(anchorFrame, "ANCHOR_NONE")
    frame:ClearAllPoints()
    local a1, a2 = getAnchors(anchorFrame)
-   frame:SetPoint(a1, anchorFrame, a2)	
+   frame:SetPoint(a1, anchorFrame, a2)
+   SetTooltipScale(frame, anchorFrame)
 end
 
+local tablet
 local function LDB_OnEnter(self, now)
    local obj = self.obj
    if obj.tooltip then
@@ -193,7 +208,13 @@ local function LDB_OnEnter(self, now)
    end
    if obj.OnEnter then
       obj.OnEnter(self)
+      -- Attempt to scale tooltip even though we didn't open it
+      -- This only works if the addon used a GameTooltip.
+      if GameTooltip:GetOwner() == self then
+	 SetTooltipScale(GameTooltip, self)
+      end	   	 
    end
+   
    self._isMouseOver = true
    self:resizeWindow()
    local bin = self:GetParent()
@@ -209,7 +230,10 @@ local function LDB_OnLeave(self)
    bin:ShowOrHide(true)
    self:resizeWindow()
    if not obj then return end
-   if mod:MouseIsOver(GameTooltip) and (obj.tooltiptext or obj.OnTooltipShow) then return end	
+   if mod:MouseIsOver(GameTooltip) and (obj.tooltiptext or obj.OnTooltipShow)
+   then
+      return
+   end	
 
    if self.hideTooltipOnLeave or obj.tooltiptext or obj.OnTooltipShow then
       GT_OnLeave(GameTooltip)
@@ -668,6 +692,13 @@ options = {
 	    get = function() return not unlockFrames end,
 	    set = function() mod:ToggleLocked() end,
 	 },
+	 tooltipScale = {
+	    type = "range",
+	    name = "Tooltip Scale",
+	    desc = "The scale of the tooltip for this datablock",
+	    width="full", 
+	    min = 0.1, max = 5, step = 0.05,
+	 },
 	 toggleButton = {
 	    type = "toggle",
 	    name = "Lock data broker button positions",
@@ -754,6 +785,14 @@ options = {
 	    type = "toggle",
 	    name = "Hide label",
 	    desc = "Hide the label for this datablock", 	
+	    hidden = "HideDataBlockOptions"
+	 },
+	 tooltipScale = {
+	    type = "range",
+	    name = "Tooltip Scale",
+	    desc = "The scale of the tooltip for this datablock",
+	    width="full", 
+	    min = 0.1, max = 5, step = 0.05,
 	    hidden = "HideDataBlockOptions"
 	 },
       }
@@ -1006,7 +1045,7 @@ options = {
 	       hpadding = {
 		  type = "range",
 		  name = "Horizontal padding",
-		  desc = "Horizontal space between each data block.",
+		  desc = "Horizontal space between each datablock.",
 		  width = "full",
 		  hidden = "UsingGlobalScale",
 		  min = 0, max = 50, step = 0.1,
@@ -1016,7 +1055,7 @@ options = {
 		  type = "range",
 		  hidden = "UsingGlobalScale",
 		  name = "Vertical padding",
-		  desc = "Space between data block rows.",
+		  desc = "Space between datablock rows.",
 		  width = "full",
 		  min = 0, max = 50, step = 0.1,
 		  order = 140,
@@ -1054,6 +1093,15 @@ options = {
 		  width = "full",
 		  min = 0, max = 4000, step = 1, 
 		  order = 180,
+	       },
+	       tooltipScale = {
+		  type = "range",
+		  name = "Tooltip Scale",
+		  desc = "The scale of the tooltips for the datablocks in this bin.",
+		  width="full", 
+		  min = 0.1, max = 5, step = 0.05,
+		  disabled = "UsingGlobalScale",
+		  order = 190,
 	       },
 	    }
 	 }
@@ -1434,9 +1482,9 @@ function mod:SetupDataBlockOptions(reload)
    end
    
    if reload then
-      R:NotifyChange("Button Bin: Data Block Configuration")
+      R:NotifyChange("Button Bin: Datablock Configuration")
    else
-      mod:OptReg(": Data Block Config", options.objconfig, "Data Block Configuration")
+      mod:OptReg(": Datablock Config", options.objconfig, "Datablock Configuration")
    end
 end
 
