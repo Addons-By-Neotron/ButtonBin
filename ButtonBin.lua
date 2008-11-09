@@ -429,7 +429,7 @@ function mod:EnableDataObject(name, obj)
    if not frame.db.bin then
       frame.db.bin = 1
    end
---   mod:Print("Enabling "..name.." in bin "..frame.db.bin.. " = "..tostring(obj.text))
+   mod:Print("Enabling "..name.." in bin "..frame.db.bin.. " = "..tostring(obj.text))
    frame:SetParent(bins[frame.db.bin])
    frame:SetScript("OnEnter", LDB_OnEnter)
    frame:SetScript("OnLeave", LDB_OnLeave)
@@ -534,12 +534,13 @@ function mod:ApplyProfile()
       self:LibDataBroker_DataObjectCreated(nil, name, obj)
    end
    for id,bin in ipairs(bins) do
+      bin:ClearAllPoints()
+      mod:LoadPosition(bin)
       if bin.mover:IsVisible() then
 	 mod:ToggleLocked()
+      else
+	 self:SortFrames(bin) -- will handle any size changes etc
       end
-      bin:ClearAllPoints()
-      self:SortFrames(bin) -- will handle any size changes etc
-      mod:LoadPosition(bin)
    end
 end
 
@@ -611,7 +612,6 @@ function mod:ToggleLocked()
 	 bin.mover:Hide()
 	 bin.mover.text:Hide()
 	 mod:LoadPosition(bin)
-	 bin:ShowOrHide()
       else
 	 bin.mover:ClearAllPoints()
 	 bin.mover:SetWidth(bin:GetWidth())
@@ -623,8 +623,9 @@ function mod:ToggleLocked()
 	 bin:SetPoint("TOPLEFT", bin.mover)
 	 bin.mover:Show()
 	 bin.mover.text:Show()
-	 bin:ShowOrHide()
       end
+      bin:ShowOrHide()
+      mod:SortFrames(bin)
    end
 end
 
@@ -669,7 +670,6 @@ function mod:ReloadFrame(bin)
       bin.button:SetScript("OnEnter", nil)      
       bin.button:SetScript("OnLeave", nil)
    end
-   mod:SortFrames(bin)
    mod:SavePosition(bin)
    mod:LoadPosition(bin)
    if wasUnlocked then mod:ToggleLocked() end
@@ -1229,9 +1229,9 @@ function binMetaTable:FixBackdrop()
    self:SetBackdropBorderColor(unpack(bdb.colors.borderColor))
 end
 
-local function ShowOrHideOnMouseover(self, bdb)
+local function ShowOrHideOnMouseover(self, bdb, force)
    self:Show()
-   if not self._isMouseOver then
+   if not self._isMouseOver and not force then
       self:SetAlpha(0.0)
       for _,name in ipairs(bdb.sortedButtons) do
 	 if buttonFrames[name] then 
@@ -1240,7 +1240,7 @@ local function ShowOrHideOnMouseover(self, bdb)
       end      
    else
       self.button:resizeWindow()
-      if not bdb.collapsed then
+      if not bdb.collapsed or force then
 	 for _,name in ipairs(bdb.sortedButtons) do
 	    if buttonFrames[name] then 
 	       buttonFrames[name]:resizeWindow()
@@ -1250,7 +1250,7 @@ local function ShowOrHideOnMouseover(self, bdb)
    end
 end
 
-function binMetaTable:ShowOrHide(timer)
+function binMetaTable:ShowOrHide(timer, onenter)
    local bdb = db.bins[self.binId]
    if timer and bdb.hideTimeout > 0 then
       if binTimers[self.binId] then
@@ -1261,6 +1261,7 @@ function binMetaTable:ShowOrHide(timer)
       self:SetAlpha(1.0)
       if unlockButtons or unlockFrames then
 	 self:Show()
+	 ShowOrHideOnMouseover(self, bdb, true)
       elseif bdb.hidden then
 	 self:Hide()
       elseif bdb.visibility == "noCombat" then
@@ -1278,6 +1279,9 @@ function binMetaTable:ShowOrHide(timer)
       else
 	 self:Show()
       end
+   end
+   if onenter and self:IsVisible() and self:GetAlpha() > 0 then
+      mod:SortFrames(self)
    end
    binTimers[self.binId] = nil
 end
@@ -1529,7 +1533,8 @@ function mod:SortFrames(bin)
    local sorted = bdb.sortedButtons
    local frame
    local addBin = false
-   if not bdb.hideBinIcon and bdb.collapsed then
+   if not bdb.hideBinIcon and bdb.collapsed
+      and not (unlockButtons or unlockFrames) then
       for id,name in pairs(sorted) do
 	 if buttonFrames[name] then
 	    buttonFrames[name]:Hide()
@@ -1748,7 +1753,6 @@ do
       if parent:GetAlpha() < 1.0 then
 	 self.label:Hide()
 	 return
-
       end
       self.icon:ClearAllPoints()
       self.label:ClearAllPoints()
@@ -1893,7 +1897,7 @@ do
 --	 mod:Print("Creating new bin frame");
 	 f = setmetatable(CreateFrame("Frame", "ButtonBinParent:"..numBinFrames, UIParent), mod.binMetaTable_mt)
 	 f:EnableMouse(true)
-	 f:SetScript("OnEnter", function(self) self._isMouseOver = true self:ShowOrHide() end)
+	 f:SetScript("OnEnter", function(self) self._isMouseOver = true self:ShowOrHide(nil, true) end)
 	 f:SetScript("OnLeave", function(self) self._isMouseOver = nil  self:ShowOrHide(true) end)
 	 f.mover = CreateFrame("Button", "ButtonBinMover", UIParent)
 	 f.mover:EnableMouse(true)
