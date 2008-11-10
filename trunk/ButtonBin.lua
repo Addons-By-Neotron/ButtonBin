@@ -739,6 +739,7 @@ function mod:ReloadFrame(bin)
    mod:UpdateAllBlocks(bin)
    mod:SavePosition(bin)
    mod:LoadPosition(bin)
+   mod:SortFrames(bin)
    if wasUnlocked then mod:ToggleLocked() end
 end
 
@@ -1365,7 +1366,7 @@ local function ShowOrHideOnMouseover(self, bdb, force)
 	 end
       end      
    else
-      self.button:resizeWindow()
+      if not bdb.hideBinIcon then self.button:resizeWindow() end
       if not bdb.collapsed or force then
 	 for _,name in ipairs(bdb.sortedButtons) do
 	    if buttonFrames[name] then 
@@ -1418,7 +1419,7 @@ function binMetaTable:ShowOrHide(timer, onenter)
 	 forceShow = true
       end
    end
-   if forceShow then
+   if forceShow and not bdb.collapsed then
       ShowOrHideOnMouseover(self, bdb, true)
    end
    if onenter and self:IsVisible() and self:GetAlpha() > 0 then
