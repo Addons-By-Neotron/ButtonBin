@@ -21,17 +21,26 @@ local DBOpt = LibStub("AceDBOptions-3.0")
 local media = LibStub("LibSharedMedia-3.0")
 local mod = ButtonBin
 
+local CreateFrame = CreateFrame
+local GetAddOnInfo = GetAddOnInfo
+local GetCursorPosition = GetCursorPosition
+local GetScreenHeight = GetScreenHeight
+local GetScreenWidth = GetScreenWidth
+local IsAltKeyDown = IsAltKeyDown
+local UIParent = UIParent
 local fmt = string.format
-local tinsert = table.insert
-local tsort   = table.sort
-local tconcat = table.concat
-local tremove = table.remove
-local type = type
-local pairs = pairs
 local ipairs = ipairs
-local tostring = tostring 
-local unpack = unpack
 local lower = string.lower
+local pairs = pairs
+local select = select
+local setmetatable = setmetatable
+local tconcat = table.concat
+local tinsert = table.insert
+local tostring = tostring 
+local tremove = table.remove
+local tsort   = table.sort
+local type = type
+local unpack = unpack
 
 local bins = {}
 local binTimers = {}
@@ -45,6 +54,15 @@ local unlockButtons = false
 local unlockFrames = false
 local playerInCombat = false
 
+function mod.clear(tbl)
+   if type(tbl) == "table" then
+      for id,data in pairs(tbl) do
+	 if type(data) == "table" then mod.del(data) end
+	 tbl[id] = nil
+      end
+   end
+end   
+   
 if Logger then
    Logger:Embed(mod)
 else
@@ -60,29 +78,6 @@ else
    end
    mod.trace = mod.debug
    mod.spam = mod.debug
-end
-
-function mod.clear(tbl)
-   if type(tbl) == "table" then
-      for id,data in pairs(tbl) do
-	 if type(data) == "table" then mod.del(data) end
-	 tbl[id] = nil
-      end
-   end
-end   
-   
-
-function mod.get()
-   return tremove(tableStore) or {}
-end
-
-function mod.del(tbl, index)
-   local todel = tbl
-   if index then todel = tbl[index] end
-   if type(todel) ~= "table" then return end
-   mod.clear(todel)
-   tinsert(tableStore, todel)
-   if index then tbl[index] = nil end
 end
 
 local defaults = {
@@ -352,8 +347,6 @@ function mod:LibDataBroker_DataObjectCreated(event, name, obj)
       bdb.sortedButtons[#bdb.sortedButtons+1] = name
    end
 end
-blockOverride = true
-hideAll = false
 
 local function TextUpdater(frame, value, name, obj, delay)
    local bdb,sdb = mod:GetBinSettings(frame:GetParent())
@@ -532,7 +525,7 @@ end
 
 do
    local timer 
-   function Low_RecalculateSizes()
+   local function Low_RecalculateSizes()
       for _,bin in ipairs(bins) do
 	 mod:SortFrames(bin)
       end
@@ -714,7 +707,7 @@ function mod:ToggleButtonLock()
 	 frame:SetScript("OnEnter", nil)
 	 frame:SetScript("OnLeave", nil)
       else
-	 if name ~= ButtonBin or not db.hideBinTooltip then
+	 if name ~= "ButtonBin" or not db.hideBinTooltip then
 	    frame:SetScript("OnEnter", frame._onenter or LDB_OnEnter)
 	    frame:SetScript("OnLeave", frame._onleave or LDB_OnLeave)
 	 end
@@ -1380,7 +1373,7 @@ end
 function binMetaTable:ShowOrHide(timer, onenter)
    local bdb = db.bins[self.binId]
    local forceShow = false
-   if timer and bdb.hideTimeout > 0 then
+   if timer and bdb.hideTimeout > 0 and bdb.visibility ~= "always" then
       if binTimers[self.binId] then
 	 mod:CancelTimer(binTimers[self.binId], true)
       end
@@ -1676,7 +1669,7 @@ end
 
 function mod:ToggleCollapsed(frame)
    local bdb
-   bin = frame:GetParent()
+   local bin = frame:GetParent()
    bdb = db.bins[bin.binId]
    bdb.collapsed = not bdb.collapsed
    bin._isMouseOver = true
@@ -1813,26 +1806,26 @@ do
       local bdb = db.bins[bin.binId]
       local newSorted = {}
       for id, name in pairs(bdb.sortedButtons) do
-	 if name ~= this.name then
+	 if name ~= self.name then
 	    newSorted[#newSorted+1] = name
 	 end
       end
       oldSorted = bdb.sortedButtons
       bdb.sortedButtons = newSorted
       mod:SortFrames(bin)
-      this:ClearAllPoints()
-      this:StartMoving()
-      this:SetAlpha(0.75)
-      this:SetFrameLevel(100)
+      self:ClearAllPoints()
+      self:StartMoving()
+      self:SetAlpha(0.75)
+      self:SetFrameLevel(100)
    end
    
    local function Button_OnDragStop(self)
       local bin = self:GetParent()
       local bdb = db.bins[bin.binId]
       local destFrame, destParent
-      this:StopMovingOrSizing()
-      this:SetFrameLevel(98)
-      this:SetAlpha(1.0)
+      self:StopMovingOrSizing()
+      self:SetFrameLevel(98)
+      self:SetAlpha(1.0)
       for id,frame in ipairs(bins) do
 	 if mod:MouseIsOver(frame.button) then
 	    destFrame = frame.button
@@ -1842,7 +1835,7 @@ do
       
       if not destFrame then
 	 for name,frame in pairs(buttonFrames) do
-	    if mod:MouseIsOver(frame) and frame ~= this then
+	    if mod:MouseIsOver(frame) and frame ~= self then
 	       destFrame = frame
 	       destParent = frame:GetParent()
 	       break
@@ -1852,13 +1845,13 @@ do
       if destFrame and destParent then
 	 if destParent ~= bin then
 	    --	 mod:Print("Changing parent from "..bin.binId.." to "..destParent.binId)
-	    this.db.bin = destParent.binId
-	    this:SetParent(destParent)
+	    self.db.bin = destParent.binId
+	    self:SetParent(destParent)
 	    bdb = db.bins[destParent.binId]
 	 end
 	 local inserted 
 	 if destParent.button == destFrame then
-	    tinsert(bdb.sortedButtons, 1, this.name)
+	    tinsert(bdb.sortedButtons, 1, self.name)
 	    inserted = true
 	 else
 	    local x, midpoint
@@ -1872,7 +1865,7 @@ do
 		  if x > midpoint then add = 1 end
 	       end
 	    else
-	       _,x = GetCursorPosition()
+	       x = select(2, GetCursorPosition())
 	       midpoint = (destFrame:GetBottom() + destFrame:GetHeight()/2)*destParent:GetEffectiveScale()
 	       if bdb.flipy then
 		  if x > midpoint then add = 1 end
@@ -1887,7 +1880,7 @@ do
 		  id = id + add 
 		  if id < 1 then id = 1 end
 		  if id > (#bdb.sortedButtons+1) then id = id - 1 end
-		  tinsert(bdb.sortedButtons, id, this.name)
+		  tinsert(bdb.sortedButtons, id, self.name)
 		  inserted = true
 		  break
 	       end
@@ -1901,7 +1894,7 @@ do
       end
       -- no valid destination, roll state back
       bdb.sortedButtons = oldSorted
-      this:SetParent(bin)
+      self:SetParent(bin)
       mod:SortFrames(bin)
    end
 
