@@ -144,7 +144,10 @@ local GameTooltip = GameTooltip
 local function GT_OnLeave(self)
    self:SetScript("OnLeave", self.oldOnLeave)
    self.oldOnLeave = nil
-   self:SetScale(1.0)
+   if self.oldScale then 
+      self:SetScale(self.oldScale)
+      self.oldScale = nil
+   end
    self:Hide()
    GameTooltip:EnableMouse(false)
 end
@@ -170,7 +173,8 @@ local function SetTooltipScale(tooltip, frame)
    local tooltipScale =
       mod:DataBlockConfig(frame.name, "tooltipScale",
 			  sdb.tooltipScale)
-   tooltip:SetScale(tooltipScale or 1.0)
+   tooltip.oldScale = tooltip:GetScale()
+   tooltip:SetScale(tooltipScale or tooltip.oldScale)
 end
 
 local function PrepareTooltip(frame, anchorFrame, isGameTooltip)
@@ -187,7 +191,7 @@ local function PrepareTooltip(frame, anchorFrame, isGameTooltip)
 end
 
 local tablet
-local function LDB_OnEnter(self, ...)
+local function LDB_OnEnter(self)
    local obj = self.obj
    if obj.tooltip then
       PrepareTooltip(obj.tooltip, self)
@@ -210,12 +214,7 @@ local function LDB_OnEnter(self, ...)
       self.hideTooltipOnLeave = true
    end
    if obj.OnEnter then
-      obj.OnEnter(self, ...)
-      -- Attempt to scale tooltip even though we didn't open it
-      -- This only works if the addon used a GameTooltip.
-      if GameTooltip:GetOwner() == self then
-	 SetTooltipScale(GameTooltip, self)
-      end	   	 
+      obj.OnEnter(self)
    end
    
    self._isMouseOver = true
@@ -225,7 +224,7 @@ local function LDB_OnEnter(self, ...)
    bin:ShowOrHide()
 end
 
-local function LDB_OnLeave(self, ...)
+local function LDB_OnLeave(self)
    local obj = self.obj
    local bin = self:GetParent()
    self._isMouseOver = nil
@@ -243,14 +242,14 @@ local function LDB_OnLeave(self, ...)
       self.hideTooltipOnLeave = nil
    end
    if obj.OnLeave then
-      obj.OnLeave(self, ...)
+      obj.OnLeave(self)
    end
 end
 
-local function LDB_OnClick(self, ...)
+local function LDB_OnClick(self, button)
    if self._onclick then
       LDB_OnLeave(self)
-      self._onclick(self, ...)
+      self._onclick(self, button)
    end
 end
 
