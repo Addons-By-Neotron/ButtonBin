@@ -337,7 +337,6 @@ end
 function mod:LibDataBroker_DataObjectCreated(event, name, obj)
    ldbObjects[name] = obj
    if db.enabledDataObjects[name].enabled then
-      mod:debug("Enabling %s", name);
       mod:EnableDataObject(name, obj)
       local binid = buttonFrames[name].db.bin
       local bdb = db.bins[binid]
@@ -346,7 +345,6 @@ function mod:LibDataBroker_DataObjectCreated(event, name, obj)
 	    return
 	 end
       end
-      mod:debug("Adding %s to bin %d ", name, buttonFrames[name].db.bin);
       bdb.sortedButtons[#bdb.sortedButtons+1] = name
       mod:SortFrames(bins[binid])
    end
