@@ -130,7 +130,7 @@ local defaults = {
 	    useGlobal = true,
 	    visibility = "always",
 	    vpadding = 0.5,
-	    width  = 20,
+	    width = 10,
 	 }
       },
    }
@@ -300,7 +300,7 @@ end
 
 function mod:AddNewBin()
    db.bins[#db.bins+1].hidden = false
-   mod:CreateBinFrame(#db.bins, db.bins[#db.bins])
+   mod:LoadPosition(mod:CreateBinFrame(#db.bins, db.bins[#db.bins]))
    self:SetupBinOptions(true)   
 end
 
@@ -330,20 +330,25 @@ do
       end
       --      f._isMouseOver = true
       mod:SortFrames(f)
+      return f
    end
 end
 
 function mod:LibDataBroker_DataObjectCreated(event, name, obj)
    ldbObjects[name] = obj
    if db.enabledDataObjects[name].enabled then
+      mod:debug("Enabling %s", name);
       mod:EnableDataObject(name, obj)
-      local bdb = db.bins[buttonFrames[name].db.bin]
+      local binid = buttonFrames[name].db.bin
+      local bdb = db.bins[binid]
       for _,bname in ipairs(bdb.sortedButtons) do
 	 if name == bname then
 	    return
 	 end
       end
+      mod:debug("Adding %s to bin %d ", name, buttonFrames[name].db.bin);
       bdb.sortedButtons[#bdb.sortedButtons+1] = name
+      mod:SortFrames(bins[binid])
    end
 end
 
@@ -635,11 +640,8 @@ function mod:LoadPosition(bin)
    if posx and posy then
       bin:SetPoint(anchor, posx/s, posy/s)
    else
-      bin:SetPoint(anchor, UIParent, "TOPLEFT")
-      if bdb.pixelwidth == 0 then
-	 bdb.pixelwidth = UIParent:GetWidth()
-	 mod:SortFrames(bin)
-      end
+      bin:SetPoint(anchor, UIParent, "CENTER")
+      mod:SortFrames(bin)
    end
 end
 
@@ -815,18 +817,20 @@ options = {
       type = "group",
       handler = mod,
       set = "SetDataBlockOption",
-      get = "GetDataBlockOption", 
+      get = "GetDataBlockOption",
       args = {
 	 help = {
 	    type = "description",
 	    name = "You can override the bar level configuration in this section. Note that when enabled, these settings will always override the settings of the individual bins.",
 	    order = 0,
+	    hidden = function() return bins[1] == nil end,
 	 },
 	 enabled = {
 	    type="toggle",
 	    name = "Enabled",
 	    desc = "Toggle to enable display of this datablock.",
 	    order = 1,
+	    disabled = function() return bins[1] == nil end,
 	 },
 	 blockOverride = {
 	    type = "toggle",
@@ -1229,6 +1233,12 @@ options = {
       name = "Data Object Configuration",
       type = "group",
       args = {
+	 help = {
+	    type = "description",
+	    name = "There are currently no bins configured. Please add a bin before configuring the data blocks.\n\n",
+	    order = 0,
+	    hidden = function() return bins[1] end,
+	 },
       }
    },
    cmdline = {
@@ -1607,8 +1617,10 @@ function mod:SetupDataBlockOptions(reload)
    local used = {}
    if reload then
       for id,data in pairs(conf) do
-	 used[data.desc] = data
-	 conf[id] = nil
+	 if data.desc then
+	    used[data.desc] = data
+	    conf[id] = nil
+	 end
       end
    end
 
