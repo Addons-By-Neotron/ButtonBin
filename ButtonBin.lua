@@ -1172,6 +1172,12 @@ options = {
 		  desc = "If checked, icons will be placed to the right of the label.",
 		  order = 110,
 	       },
+	       center = {
+		  type = "toggle",
+		  name = "Center alignment",
+		  desc = "All rows will be center aligned in the bin.",
+		  order = 120,
+	       }
 	    }
 	 },
 	 spacing = {
@@ -1769,9 +1775,10 @@ function mod:SortFrames(bin)
    if bdb.border ~= "None" then
       inset = bdb.edgeSize / 2
    end
-   
+
    local hpadding = (sdb.hpadding or 0)
    local vpadding = (sdb.size + (sdb.vpadding or 0))
+   local frameAlign = {}
    if not bdb.hideBinIcon then 
       previousFrame = bin.button
       previousFrame:resizeWindow()
@@ -1779,6 +1786,7 @@ function mod:SortFrames(bin)
       previousFrame:SetPoint(anchor, bin, anchor, xmulti*inset, ymulti*inset)
       width = previousFrame:GetWidth() + inset
       height = vpadding + inset
+      frameAlign[1] = { frame = previousFrame, width = width, ypos = ymulti*inset }
       if bdb.width > 1 then
 	 xoffset = hpadding + width
 	 count = 2
@@ -1791,7 +1799,8 @@ function mod:SortFrames(bin)
       width = inset
       height = inset
    end
-   
+   local frameAlign = {}
+   local lineWidth = 0
    for _,name in ipairs(sorted) do
       frame = buttonFrames[name]
       if frame then
@@ -1806,16 +1815,24 @@ function mod:SortFrames(bin)
 	       previousFrame = nil
 	       xoffset = hpadding + fwidth
 	       count = 1
+	    else
+	       lineWidth = xoffset
 	    end
 	    count = count + 1
-	    if xoffset > width then width =  xoffset end		    
+	    if xoffset > width then width =  xoffset end
 	    if previousFrame then
---	       mod:Print(tostring(previousFrame).. ":"..previousFrame.name.." =>"..
---			 tostring(frame) .. ":"..frame.name)
 	       frame:SetPoint(anchor, previousFrame, otheranchor, xmulti*hpadding, 0)
 	    else
 	       height = height + vpadding
-	       frame:SetPoint(anchor, bin, anchor, xmulti*inset, ymulti*(height-vpadding))
+	       local ypos = ymulti*(height-vpadding)
+	       if bdb.center then
+		  local frameCount = #frameAlign
+		  if frameCount > 0 then
+		     frameAlign[frameCount].width = lineWidth
+		  end
+		  frameAlign[frameCount+1] = { frame = frame, width = xoffset, ypos = ypos }
+	       end
+	       frame:SetPoint(anchor, bin, anchor, xmulti*inset, ypos)
 	    end
 	    previousFrame = frame
 	 else
@@ -1823,8 +1840,21 @@ function mod:SortFrames(bin)
 	 end
       end
    end
+
+   if #frameAlign > 0 then
+      frameAlign[#frameAlign].width = xoffset
+   end
+   
    if bdb.pixelwidth > width then
       width = bdb.pixelwidth
+   end
+   if bdb.center then
+      for id,framedata in ipairs(frameAlign) do
+	 if framedata.width ~= width then
+	    framedata.frame:ClearAllPoints()
+	    framedata.frame:SetPoint(anchor, bin, anchor, xmulti*(inset+(width-framedata.width)/2), framedata.ypos)
+	 end
+      end
    end
    bin:SetWidth(width + inset)
    bin:SetHeight(height + inset)
