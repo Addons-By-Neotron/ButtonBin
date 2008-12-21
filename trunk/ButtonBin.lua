@@ -404,11 +404,39 @@ local function TextUpdater(frame, value, name, obj, delay)
       end
    end
 end
+local function SetTexCoord(frame, value, name, object)
+   object.texcoord = value
+   if object.texcoord then
+      frame.icon:SetTexCoord(unpack(object.texcoord))
+   end
+end
+
+local function SetIconColor(frame, object) 
+   frame.icon:SetVertexColor(object.iconR or 1,
+			     object.iconG or 1,
+			     object.iconB or 1)
+end
+
+
 
 local updaters = {
    text   = TextUpdater,   value  = TextUpdater,
    suffix = TextUpdater,   label  = TextUpdater,
-   icon = function(frame, value, name, delay)
+   textcoord = SetTexCoord,
+   iconCoords = SetTexCoord,
+   iconR = function(frame, value, name, object) 
+	      object.iconR = value
+	      SetIconColor(frame, object)
+	   end,
+   iconG = function(frame, value, name, object) 
+	      object.iconG = value
+	      SetIconColor(frame, object)
+	   end,
+   iconB = function(frame, value, name, object) 
+	      object.iconB = value
+	      SetIconColor(frame, object)
+	   end,
+   icon = function(frame, value, name, object, delay)
 	     frame.icon:SetTexture(value)
 	     local has_texture = not not value
 	     if has_texture ~= frame._has_texture then
@@ -443,8 +471,10 @@ function mod:AttributeChanged(event, name, key, value)
    local f = buttonFrames[name]
    local obj = ldbObjects[name]
    obj[key] = value
-   if f and obj and updaters[key] then
-      updaters[key](f, value, name, obj)     
+   if f and obj then 
+      if updaters[key] then
+	 updaters[key](f, value, name, obj)     
+      end
    end   
 end
 
