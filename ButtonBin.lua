@@ -131,6 +131,7 @@ local defaults = {
 	    visibility = "always",
 	    vpadding = 0.5,
 	    width = 10,
+	    binTexture = "Interface\\AddOns\\ButtonBin\\bin.tga",
 	 }
       },
    }
@@ -323,15 +324,20 @@ do
       f.button.db = { tooltiptext = tooltip:format(id) }
       f.button.obj = f.button.db
       f.button.name = "ButtonBin"
-      if bdb.binLabel then
-	 f.button.buttonBinText = "Bin #"..id
-      else
-	 f.button.buttonBinText = nil
-      end
+      mod:SetBinIconAndLabel(f, bdb)
       --      f._isMouseOver = true
       mod:SortFrames(f)
       return f
    end
+end
+
+function mod:SetBinIconAndLabel(frame, bdb)
+   if bdb.binLabel then
+      frame.button.buttonBinText = bdb.binName or "Bin #"..frame.binId
+   else
+      frame.button.buttonBinText = nil
+   end
+   frame.button.icon:SetTexture(bdb.binTexture)
 end
 
 function mod:LibDataBroker_DataObjectCreated(event, name, obj)
@@ -943,6 +949,40 @@ options = {
 	    confirmText = "Are you sure that you want to delete this bin? This action can't be reverted.",
 	    order = 10,
 	 },
+	 binIcon = {
+	    type = "group",
+	    name = "Bin Icon and Name",
+	    args = {
+	       binName = {
+		  type = "input",
+		  name = "Bin Name",
+		  desc = "The name of the bin, used in the configuration UI and the bin icon if shown.",
+		  order = 3,
+		  disabled = "DisableBinIconOptions",
+	       },
+	       binTexture =  {
+		  type = "input",
+		  name = "Bin Icon Texture",
+		  desc = "The path to the texture used as the bin icon.",
+		  order = 4,
+		  disabled = "DisableBinIconOptions",
+	       },
+	       hideBinIcon = {
+		  width = "full",
+		  type = "toggle",
+		  name = "Hide button bin icon",
+		  desc = "Hide or show the button bin icon for this bin.",
+		  order = 1
+	       },
+	       binLabel = {
+		  type = "toggle",
+		  width = "full",
+		  name = "Show label for the ButtonBin icon ",
+		  order = 50,
+		  disabled = "DisableBinLabelOption",
+	       },
+	    },
+	 },
 	 general = {
 	    type = "group",
 	    name = "General",
@@ -967,13 +1007,6 @@ options = {
 		  width = "full",
 		  desc = "Hide or show this bin.",
 		  order = 20,
-	       },
-	       hideBinIcon = {
-		  width = "full",
-		  type = "toggle",
-		  name = "Hide button bin icon",
-		  desc = "Hide or show the button bin icon for this bin.",
-		  order = 30
 	       },
 	       hideIcons = {
 		  width = "full",
@@ -1049,13 +1082,6 @@ options = {
 		  name = "Hide all text",
 		  desc = "Hide all text, showing only the icons.",
 		  order = 40,
-	       },
-	       binLabel = {
-		  type = "toggle",
-		  width = "full",
-		  name = "Show label for the ButtonBin icon ",
-		  order = 50,
-		  disabled = "DisableBinLabelOption",
 	       },
 	       labelOnMouse = {
 		  width = "full",
@@ -1496,6 +1522,10 @@ function binMetaTable:DisableBinLabelOption(info)
    return bdb.hideAllText or bdb.hideBinIcon
 end
 
+function binMetaTable:DisableBinIconOptions(info)
+   return db.bins[self.binId].hideBinIcon
+end
+
 function binMetaTable:DisableHideOption(info)
    local bdb = db.bins[self.binId]
    return bdb.visibility == "always"
@@ -1560,14 +1590,13 @@ function binMetaTable:SetOption(info, val)
       self.mover:SetScale(self:GetScale())
    elseif var == "hidden" or var == "visibility" then
       self:ShowOrHide()
-   elseif var == "binLabel" then
-      if val then
-	 self.button.buttonBinText = "Bin #"..self.binId
-      else
-	 self.button.buttonBinText = nil
-      end
+   elseif var == "binLabel"  or var == "binName" or var == "binTexture" then
+      mod:SetBinIconAndLabel(self, bdb)
       if not bdb.hideBinIcon then
 	 self.button:resizeWindow()
+      end
+      if var == "binName" then
+	 mod:SetupBinOptions(true) -- reload list of bins
       end
       return
    elseif var == "background" or var == "border" or var == "edgeSize"then
@@ -1597,12 +1626,16 @@ function mod:SetupBinOptions(reload)
 	 options.bins.args[id] = nil
       end
    end
-   for id, bin in ipairs(db.bins) do
+   for id, bdb in ipairs(db.bins) do
       local bin = {}
       for key,val in pairs(options.binConfig) do
 	 bin[key] = val
       end
-      bin.name = bin.name .. id
+      if bdb.binName then
+	 bin.name = bdb.binName
+      else
+	 bin.name = bin.name .. id
+      end
       bin.handler = bins[id]
       options.bins.args[tostring(id)] = bin
    end
@@ -1786,10 +1819,10 @@ function mod:SortFrames(bin)
       previousFrame:SetPoint(anchor, bin, anchor, xmulti*inset, ymulti*inset)
       width = previousFrame:GetWidth() + inset
       height = vpadding + inset
-      frameAlign[1] = { frame = previousFrame, width = width, ypos = ymulti*inset }
       if bdb.width > 1 then
 	 xoffset = hpadding + width
 	 count = 2
+	 frameAlign[1] = { frame = previousFrame, width = xoffset, ypos = ymulti*inset }
       else
 	 previousFrame = nil
       end
@@ -1799,7 +1832,6 @@ function mod:SortFrames(bin)
       width = inset
       height = inset
    end
-   local frameAlign = {}
    local lineWidth = 0
    for _,name in ipairs(sorted) do
       frame = buttonFrames[name]
@@ -2170,8 +2202,6 @@ do
 	    f.button:SetScript("OnEnter", LDB_OnEnter)
 	    f.button:SetScript("OnLeave", LDB_OnLeave)
 	 end
-	 f.button.icon:SetTexture("Interface\\AddOns\\ButtonBin\\bin.tga")
-	 f.button.name = "ButtonBin"
 	 f.mover:Hide()
 	 f.mover.text:Hide()	 
       end
