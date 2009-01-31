@@ -13,7 +13,7 @@ local LibStub = LibStub
 local LDB = LibStub:GetLibrary("LibDataBroker-1.1")
 local R = LibStub("AceConfigRegistry-3.0")
 
-local BB_DEBUG = true
+local BB_DEBUG = false
 
 local LJ = LibStub("LibJostle-3.0")
 
@@ -283,11 +283,6 @@ function mod:OnInitialize()
       mod:SetLogLevel(self.logLevels.TRACE)
    end
 
-   options.profile = DBOpt:GetOptionsTable(self.db)
-
-   mod:SetupOptions()
-   
-   
    if BB_DEBUG then
       -- Just for easy access while debugging
       bbdb = db
@@ -520,6 +515,7 @@ function mod:OnEnable()
    for id,bdb in pairs(db.bins) do
       mod:CreateBinFrame(id, bdb)
    end
+   mod:SetupOptions()
    
    self:ApplyProfile()
    if self.SetLogLevel then
@@ -694,7 +690,6 @@ function mod:LoadPosition(bin)
       LJ:Refresh()
    else
       bin:SetPoint(anchor, UIParent, "CENTER")
-      mod:SortFrames(bin)
    end
 end
 
@@ -1480,6 +1475,7 @@ end
 
 local barFrameMT = {__index = CreateFrame("Frame") }
 local binMetaTable =  setmetatable({}, barFrameMT)
+mod.binMetaTable = binMetaTable
 mod.binMetaTable_mt = {__index = binMetaTable }
 
 
@@ -1580,7 +1576,7 @@ function binMetaTable:ShowOrHide(timer, onenter)
    if onenter and self:IsVisible() and self:GetAlpha() > 0 then
       mod:SortFrames(self)
    end
-   mod:LoadPosition(self) -- this will make sure hiding / showing works as expected
+--   mod:LoadPosition(self) -- this will make sure hiding / showing works as expected
    binTimers[self.binId] = nil
 end
 
@@ -1601,6 +1597,10 @@ function binMetaTable:GetColorOpt(arg)
    return unpack(bdb.colors[color])
 end
 
+function binMetaTable:DisableBinIconOptions(info)
+   return db.bins[self.binId].hideBinIcon
+end
+
 function binMetaTable:DisableLabelOption(info)
    local bdb = db.bins[self.binId]
    return bdb.hideAllText
@@ -1614,10 +1614,6 @@ end
 function binMetaTable:DisableBinLabelOption(info)
    local bdb = db.bins[self.binId]
    return bdb.hideAllText or bdb.hideBinIcon
-end
-
-function binMetaTable:DisableBinIconOptions(info)
-   return db.bins[self.binId].hideBinIcon
 end
 
 function binMetaTable:DisableHideOption(info)
@@ -1827,6 +1823,7 @@ function mod:SetupDataBlockOptions(reload)
 end
 
 function mod:SetupOptions()
+   options.profile = DBOpt:GetOptionsTable(self.db)
    mod.main = mod:OptReg("Button Bin", options.global)
    mod:SetupBinOptions()
    mod:SetupDataBlockOptions()
