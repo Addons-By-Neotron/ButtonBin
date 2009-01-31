@@ -13,7 +13,9 @@ local LibStub = LibStub
 local LDB = LibStub:GetLibrary("LibDataBroker-1.1")
 local R = LibStub("AceConfigRegistry-3.0")
 
-local BB_DEBUG = false
+local BB_DEBUG = true
+
+local LJ = LibStub("LibJostle-3.0")
 
 local Logger = LibStub("LibLogger-1.0", true)
 local C = LibStub("AceConfigDialog-3.0")
@@ -114,6 +116,7 @@ local defaults = {
 	    flipx = false,
 	    flipy = false,
 	    font = "Friz Quadrata TT",
+	    moveFrames = false,
 	    fontsize = 12,
 	    hidden = true, 
 	    hideAllText = false,
@@ -282,12 +285,6 @@ function mod:OnInitialize()
 
    options.profile = DBOpt:GetOptionsTable(self.db)
 
-   -- Make sure we have at least one
-   db.bins[1].hidden = false
-   for id,bdb in pairs(db.bins) do
-      mod:CreateBinFrame(id, bdb)
-   end
-   
    mod:SetupOptions()
    
    
@@ -516,6 +513,14 @@ function mod:DisableDataObject(name, obj)
 end
 
 function mod:OnEnable()
+   -- Make sure we have the default set of bins
+   if not db.bins or #db.bins == 0 then
+      mod:LoadDefaultBins()
+   end
+   for id,bdb in pairs(db.bins) do
+      mod:CreateBinFrame(id, bdb)
+   end
+   
    self:ApplyProfile()
    if self.SetLogLevel then
       self:SetLogLevel(self.logLevels.TRACE)
@@ -673,6 +678,20 @@ function mod:LoadPosition(bin)
    local s = bin:GetEffectiveScale()
    if posx and posy then
       bin:SetPoint(anchor, posx/s, posy/s)
+      if bdb.moveFrames and bin:IsVisible() and bin:GetAlpha() > 0 then
+	 local height = UIParent:GetHeight()
+	 local diff = height + posy/s
+	 if diff < height/15 then
+	    LJ:RegisterBottom(bin)
+	 elseif (height - diff) < height/15 then
+	    LJ:RegisterTop(bin)
+	 else
+	    LJ:Unregister(bin)
+	 end
+      else
+	 LJ:Unregister(bin)
+      end
+      LJ:Refresh()
    else
       bin:SetPoint(anchor, UIParent, "CENTER")
       mod:SortFrames(bin)
@@ -688,13 +707,50 @@ function mod:OnProfileChanged(event, newdb, src)
       for id,frame in ipairs(bins) do
 	 db.bins[id] = nil
       end
-      db.bins[1].hidden = false
+      mod:LoadDefaultBins()
+--      db.bins[1].hidden = false
    end
    for id,bdb in pairs(db.bins) do
       mod:CreateBinFrame(id, bdb)
    end
    self:ApplyProfile()
    self:SetupBinOptions(true)
+end
+
+
+function mod:LoadDefaultBins()
+   local defaults = {
+      ["posy"] = 0.5,
+      ["posx"] = 0,
+      ["hidden"] = false,
+      ["binLabel"] = false,
+      ["hideBinIcon"] = true,
+      ["edgeSize"] = 0,
+      ["moveFrames"] = true,
+      ["anchor"] = "TOPLEFT",
+      ["pixelwidth"] = UIParent:GetWidth(),
+      ["width"] = 100,
+      ["clampToScreen"] = false
+   }
+
+   for id = 1, 3 do
+      local bdb = db.bins[id]
+      for key, val in pairs(defaults) do
+	 bdb[key] = val
+      end
+   end
+
+   -- left
+   db.bins[1].binName = "Left"
+   db.bins[1].hideBinIcon = false
+   -- right
+   db.bins[2].binName = "Right"
+   db.bins[2].flipx = true
+   db.bins[2].anchor = "TOPRIGHT"
+   -- center
+   db.bins[3].binName = "Center"
+   db.bins[3].center = true
+
 end
 
 function mod:ToggleLocked()
@@ -905,6 +961,18 @@ options = {
 	    min = 0.1, max = 5, step = 0.05,
 	    hidden = "HideDataBlockOptions"
 	 },
+	 bin = {
+	    type = "select",
+	    name = "Bin",
+	    desc = "The bin this datablock resides in.",
+	    width = "full",
+	    values = function() local val = {}
+			for id,bdb in pairs(db.bins) do
+			   val[id]= bdb.binName
+			end
+			return val
+		     end,
+	 }
       }
    },
 
@@ -991,6 +1059,13 @@ options = {
 		  type = "toggle",
 		  name = "Hide blocks without icons",
 		  desc = "This will hide all addons that lack icons instead of showing an empty space.",
+		  width = "full",
+		  order = 10,
+	       },
+	       moveFrames = {
+		  type = "toggle",
+		  name = "Move Blizzard frames",
+		  desc = "When enabled, default Blizzard frames such as the minimap, buff frame etc will be moved to make room for this bin. This is useful if you want your bin to sit at the top or bottom of the frame without overlapping Blizzard frames..",
 		  width = "full",
 		  order = 10,
 	       },
@@ -1340,8 +1415,25 @@ end
 function mod:SetDataBlockOption(info, val)
    local var  = info[#info]
    local name = options.objconfig.args[info[#info - 1]].desc
-   db.enabledDataObjects[name][var] = val
+   
+   if var == "bin" and val ~= db.enabledDataObjects[name][var] then
+      -- Moving this to another bin
+      local oldBin = db.enabledDataObjects[name][var]
+      buttonFrames[name]:SetParent(bins[val])
+      local oldBinButtons = {}
+      for _,bname in ipairs(db.bins[oldBin].sortedButtons) do
+	 if bname ~= name then
+	    oldBinButtons[#oldBinButtons+1] = bname
+	 end
+      end
+      db.bins[oldBin].sortedButtons = oldBinButtons
+      db.bins[val].sortedButtons[#db.bins[val].sortedButtons+1] = name
+      mod:SortFrames(bins[oldBin])
+      mod:SortFrames(bins[val])
+   end
 
+   db.enabledDataObjects[name][var] = val
+   
    if buttonFrames[name] then
       mod:UpdateBlock(name)
       buttonFrames[name]:resizeWindow(true)
@@ -1367,6 +1459,7 @@ function mod:HideOverrideConfig(info)
    local name = options.objconfig.args[info[#info - 1]].desc
    return not db.enabledDataObjects[name].enabled
 end
+
 function mod:HideDataBlockOptions(info)
    local name = options.objconfig.args[info[#info - 1]].desc
    return not db.enabledDataObjects[name].blockOverride or
@@ -1487,6 +1580,7 @@ function binMetaTable:ShowOrHide(timer, onenter)
    if onenter and self:IsVisible() and self:GetAlpha() > 0 then
       mod:SortFrames(self)
    end
+   mod:LoadPosition(self) -- this will make sure hiding / showing works as expected
    binTimers[self.binId] = nil
 end
 
@@ -1973,7 +2067,7 @@ do
 	       else
 		  if x < midpoint then add = 1 end
 	       end	
-    end
+	    end
 	    
 	    --	 mod:Print("x = "..x..", mid = "..midpoint.."...")
 	    for id,n in pairs(bdb.sortedButtons) do
@@ -2131,6 +2225,7 @@ do
    }
    function mod:ReleaseBinFrame(frame, noClear)
       frame.disabled = true
+      LJ:Unregister(frame) -- easier to always do this
       for _,obj in pairs(buttonFrames) do
 	 if obj:GetParent() == frame then
 	    mod:ReleaseFrame(obj)
