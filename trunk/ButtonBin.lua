@@ -1,3 +1,4 @@
+
 --[[
 **********************************************************************
 ButtonBin - A displayer for LibDataBroker compatible addons
@@ -998,15 +999,20 @@ options = {
    bins = {
       type = "group",
       name = "Bins",
---      childGroups = "select",
       handler = mod,
       args = {
          newbin = {
             type = "execute",
             name = "Add a new bin",
             desc = "Create a new display bin.",
-            func = "AddNewBin"
-         }
+            func = "AddNewBin",
+         },
+	 loaddefaults = {
+	    type = "execute",
+	    name = "Reset Bin Layout",
+	    desc = "This will remove your existing set of bins and load the default three bin left/center/right setup. All datablocks will be reset to be shown in the first bin as well.",
+	    func = "LoadDefaultBins",
+	 }
       }
    },
    binConfig = {
@@ -1742,8 +1748,8 @@ do
 end
 
 function mod:SetupBinOptions(reload)
-   for id in pairs(options.bins.args) do
-      if id ~= "newbin" then
+   for id, data in pairs(options.bins.args) do
+      if data.type == "group" then
          options.bins.args[id] = nil
       end
    end
@@ -1855,15 +1861,6 @@ end
 
 function mod:SetupOptions()
    options.profile = DBOpt:GetOptionsTable(self.db)
-   options.profile.args.loaddefaults = {
-      order = 11,
-      type = "execute",
-      name = "Reset Bin Layout",
-      desc = "This will remove your existing set of bins and load the default three bin left/center/right setup. All datablocks will be reset to be shown in the first bin as well.",
-      handler = mod, 
-      func = "LoadDefaultBins",
-   }
-
    mod.main = mod:OptReg("Button Bin", options.global)
    mod:SetupBinOptions()
    mod:SetupDataBlockOptions()
