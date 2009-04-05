@@ -140,19 +140,6 @@ local defaults = {
    }
 }
 
-
-local function deepCopy(table)
-   local dest = {}
-   for k,v in pairs(table) do
-      if type(v) == "table" then
-	 dest[k] = deepCopy(v)
-      else
-	 dest[k] = v
-      end
-   end
-end
-
-
 local function ColorToHex(c)
    return ("%02x%02x%02x"):format(c[1]*255, c[2]*255, c[3]*255)
 end
