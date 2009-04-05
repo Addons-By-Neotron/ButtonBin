@@ -8,7 +8,6 @@ author Borlox.
 ]]
 ButtonBin = LibStub("AceAddon-3.0"):NewAddon("ButtonBin", "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0" )
 
--- Silently fail embedding if it doesn't exist
 local LibStub = LibStub
 local LDB = LibStub:GetLibrary("LibDataBroker-1.1")
 local R = LibStub("AceConfigRegistry-3.0")
@@ -17,6 +16,7 @@ local BB_DEBUG = false
 
 local LJ = LibStub("LibJostle-3.0")
 
+-- Silently fail embedding if it doesn't exist
 local Logger = LibStub("LibLogger-1.0", true)
 local C = LibStub("AceConfigDialog-3.0")
 local DBOpt = LibStub("AceDBOptions-3.0")
@@ -84,7 +84,6 @@ end
 
 local defaults = {
    profile = {
-      -- TBD
       enabledDataObjects = {
          ['*'] = {
             enabled = true,
@@ -98,47 +97,61 @@ local defaults = {
       hpadding = 0.5,
       vpadding = 0.5,
       bins = {
-         ['*'] = {
-            colors = {
-               backgroundColor = { 0, 0, 0, 0.5},
-               borderColor = { 0.88, 0.88, 0.88, 0.8 },
-               labelColor  = { 1, 1, 1 },
-               textColor   = { 1, 1, 1 },
-               unitColor   = { 1, 1, 1 },
-               valueColor   = { 0.9, 0.9, 0 },
-            },
-            background = "Solid",
-            binLabel = true,
-            border = "None",
-            clampToScreen = true,
-            collapsed = false,
-            edgeSize = 10,
-            flipx = false,
-            flipy = false,
-            font = "Friz Quadrata TT",
-            moveFrames = false,
-            fontsize = 12,
-            hidden = true,
-            hideAllText = false,
-            hideEmpty = true,
-            hideLabel = true,
-            hideTimeout = 2,
-            hpadding = 0.5,
-            labelOnMouse = false,
-            pixelwidth = 0,
-            scale = 1.0,
-            size = 24,
-            sortedButtons = {},
-            tooltipScale = 1.0,
-            useGlobal = true,
-            visibility = "always",
-            vpadding = 0.5,
-            width = 10,
-            binTexture = "Interface\\AddOns\\ButtonBin\\bin.tga",
-         },
-      },
+	 ['*'] =  {
+	    colors = {
+	       backgroundColor = { 0, 0, 0, 0.5},
+	       borderColor = { 0.88, 0.88, 0.88, 0.8 },
+	       labelColor  = { 1, 1, 1 },
+	       textColor   = { 1, 1, 1 },
+	       unitColor   = { 1, 1, 1 },
+	       valueColor   = { 0.9, 0.9, 0 },
+	    },
+	    background = "Solid",
+	    binLabel = true,
+	    border = "None",
+	    clampToScreen = true,
+	    collapsed = false,
+	    edgeSize = 10,
+	    flipx = false,
+	    flipy = false,
+	    font = "Friz Quadrata TT",
+	    moveFrames = false,
+	    fontsize = 12,
+	    hidden = true,
+	    hideAllText = false,
+	    hideEmpty = true,
+	    hideLabel = true,
+	    hideTimeout = 2,
+	    hpadding = 0.5,
+	    labelOnMouse = false,
+	    pixelwidth = 0,
+	    scale = 1.0,
+	    size = 24,
+	    sortedButtons = {},
+	    tooltipScale = 1.0,
+	    useGlobal = true,
+	    visibility = "always",
+	    vpadding = 0.5,
+	    width = 10,
+	    binTexture = "Interface\\AddOns\\ButtonBin\\bin.tga",
+	    center = false, 
+	 }
+      }
    }
 }
+
+
+local function deepCopy(table)
+   local dest = {}
+   for k,v in pairs(table) do
+      if type(v) == "table" then
+	 dest[k] = deepCopy(v)
+      else
+	 dest[k] = v
+      end
+   end
+end
+
 
 local function ColorToHex(c)
    return ("%02x%02x%02x"):format(c[1]*255, c[2]*255, c[3]*255)
@@ -197,33 +210,36 @@ end
 local tablet
 local function LDB_OnEnter(self)
    local obj = self.obj
-   if obj.tooltip then
-      PrepareTooltip(obj.tooltip, self)
-      obj.tooltip:Show()
-      if obj.tooltiptext then
-         obj.tooltip:SetText(obj.tooltiptext)
+   local bin = self:GetParent()
+   local bdb = mod:GetBinSettings(bin)
+   local hideTooltip = mod:DataBlockConfig(self.name, "hideTooltip", bdb.hideTooltips)
+   if not hideTooltip then
+      if obj.tooltip then
+	 PrepareTooltip(obj.tooltip, self)
+	 obj.tooltip:Show()
+	 if obj.tooltiptext then
+	    obj.tooltip:SetText(obj.tooltiptext)
+	 end
+      elseif obj.OnTooltipShow then
+	 PrepareTooltip(GameTooltip, self, true)
+	 obj.OnTooltipShow(GameTooltip)
+	 GameTooltip:Show()
+      elseif obj.tooltiptext then
+	 PrepareTooltip(GameTooltip, self, true)
+	 GameTooltip:SetText(obj.tooltiptext)
+	 GameTooltip:Show()
+      elseif self.buttonBinText and not obj.OnEnter then
+	 PrepareTooltip(GameTooltip, self, true)
+	 GameTooltip:SetText(self.buttonBinText)
+	 GameTooltip:Show()
+	 self.hideTooltipOnLeave = true
       end
-   elseif obj.OnTooltipShow then
-      PrepareTooltip(GameTooltip, self, true)
-      obj.OnTooltipShow(GameTooltip)
-      GameTooltip:Show()
-   elseif obj.tooltiptext then
-      PrepareTooltip(GameTooltip, self, true)
-      GameTooltip:SetText(obj.tooltiptext)
-      GameTooltip:Show()
-   elseif self.buttonBinText and not obj.OnEnter then
-      PrepareTooltip(GameTooltip, self, true)
-      GameTooltip:SetText(self.buttonBinText)
-      GameTooltip:Show()
-      self.hideTooltipOnLeave = true
+      if obj.OnEnter then
+	 obj.OnEnter(self)
+      end
    end
-   if obj.OnEnter then
-      obj.OnEnter(self)
-   end
-
    self._isMouseOver = true
    self:resizeWindow()
-   local bin = self:GetParent()
    bin._isMouseOver = true
    bin:ShowOrHide()
 end
@@ -371,10 +387,10 @@ local function TextUpdater(frame, value, name, obj, delay)
          if showValue and obj.value then
             text = fmt("|cff%s%s:|r |cff%s%s|r|cff%s%s|r", labelColor, obj.label,
                        valueColor, obj.value, unitColor, obj.suffix or "")
-
+	    
          elseif showText and obj.text and obj.text ~= obj.label then
-            text = fmt("|cff%s%s:|r |cff%s%s|r",
-                       labelColor, obj.label, textColor, obj.text)
+	    text = fmt("|cff%s%s:|r |cff%s%s|r",
+		       labelColor, obj.label, textColor, obj.text)
 
          else
             text = fmt("|cff%s%s|r", labelColor, obj.label)
@@ -702,8 +718,7 @@ function mod:OnProfileChanged(event, newdb, src)
       for id,frame in ipairs(bins) do
          db.bins[id] = nil
       end
-      mod:LoadDefaultBins()
---      db.bins[1].hidden = false
+      db.bins[1].hidden = false
    end
    for id,bdb in pairs(db.bins) do
       mod:CreateBinFrame(id, bdb)
@@ -713,21 +728,27 @@ function mod:OnProfileChanged(event, newdb, src)
 end
 
 
-function mod:LoadDefaultBins()
+function mod:LoadDefaultBins(reload)
    local defaults = {
-      ["posy"] = 0.5,
-      ["posx"] = 0,
-      ["hidden"] = false,
-      ["binLabel"] = false,
-      ["hideBinIcon"] = true,
-      ["edgeSize"] = 0,
-      ["moveFrames"] = true,
-      ["anchor"] = "TOPLEFT",
-      ["pixelwidth"] = UIParent:GetWidth(),
-      ["width"] = 100,
-      ["clampToScreen"] = false
+      posy = 0.5,
+      posx = 0,
+      hidden = false,
+      binLabel = false,
+      hideBinIcon = true,
+      edgeSize = 0,
+      moveFrames = true,
+      anchor = "TOPLEFT",
+      pixelwidth = UIParent:GetWidth(),
+      width = 100,
+      clampToScreen = false
    }
 
+   for id in ipairs(db.bins) do
+      if bins[id] then
+	 mod:ReleaseBinFrame(bins[id])
+      end
+      db.bins[id] = nil
+   end
    for id = 1, 3 do
       local bdb = db.bins[id]
       for key, val in pairs(defaults) do
@@ -746,6 +767,17 @@ function mod:LoadDefaultBins()
    db.bins[3].binName = "Center"
    db.bins[3].center = true
 
+   for id, data in pairs(db.enabledDataObjects) do
+      data.bin = 1
+   end
+
+   if reload then 
+      for id,bdb in pairs(db.bins) do
+	 mod:CreateBinFrame(id, bdb)
+      end      
+      self:ApplyProfile()
+      self:SetupBinOptions(true)
+   end
 end
 
 function mod:ToggleLocked()
@@ -924,6 +956,12 @@ options = {
             order = 2,
             hidden = "HideOverrideConfig",
          },
+	 hideTooltip = {
+	    type = "toggle",
+	    name = "Hide tooltip",
+	    desc = "Don't show the mouseover tooltip for this block.",
+	    order = 10,
+	 },	 
          hideIcon = {
             type = "toggle",
             name = "Hide icon",
@@ -1054,6 +1092,13 @@ options = {
                   type = "toggle",
                   name = "Hide blocks without icons",
                   desc = "This will hide all addons that lack icons instead of showing an empty space.",
+                  width = "full",
+                  order = 10,
+               },
+               hideTooltips = {
+                  type = "toggle",
+                  name = "Hide tooltips",
+                  desc = "Don't show the mouseover tooltips for any blocks in this bin, unless overriden by the block level configuration.",
                   width = "full",
                   order = 10,
                },
@@ -1824,6 +1869,15 @@ end
 
 function mod:SetupOptions()
    options.profile = DBOpt:GetOptionsTable(self.db)
+   options.profile.args.loaddefaults = {
+      order = 11,
+      type = "execute",
+      name = "Reset Bin Layout",
+      desc = "This will remove your existing set of bins and load the default three bin left/center/right setup. All datablocks will be reset to be shown in the first bin as well.",
+      handler = mod, 
+      func = "LoadDefaultBins",
+   }
+
    mod.main = mod:OptReg("Button Bin", options.global)
    mod:SetupBinOptions()
    mod:SetupDataBlockOptions()
