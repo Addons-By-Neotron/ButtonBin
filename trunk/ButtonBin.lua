@@ -514,9 +514,10 @@ function mod:OnEnable()
    -- Make sure we have the default set of bins
    if not db.bins or #db.bins == 0 then
       mod:LoadDefaultBins()
-   end
-   for id,bdb in pairs(db.bins) do
-      mod:CreateBinFrame(id, bdb)
+   else
+      for id,bdb in pairs(db.bins) do
+	 mod:CreateBinFrame(id, bdb)
+      end
    end
    mod:SetupOptions()
 
@@ -715,7 +716,7 @@ function mod:OnProfileChanged(event, newdb, src)
 end
 
 
-function mod:LoadDefaultBins(reload)
+function mod:LoadDefaultBins()
    local defaults = {
       posy = 0.5,
       posx = 0,
@@ -758,13 +759,11 @@ function mod:LoadDefaultBins(reload)
       data.bin = 1
    end
 
-   if reload then 
-      for id,bdb in pairs(db.bins) do
-	 mod:CreateBinFrame(id, bdb)
-      end      
-      self:ApplyProfile()
-      self:SetupBinOptions(true)
-   end
+   for id,bdb in pairs(db.bins) do
+      mod:CreateBinFrame(id, bdb)
+   end      
+   self:ApplyProfile()
+   self:SetupBinOptions(true)
 end
 
 function mod:ToggleLocked()
