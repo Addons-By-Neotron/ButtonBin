@@ -1,4 +1,4 @@
-## Interface: 30300
+## Interface: 40000
 ## X-Compatible-With: 40000
 ## Title: Button Bin
 ## Notes: A bin for all your LibDataBroker buttons
