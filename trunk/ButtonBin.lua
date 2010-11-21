@@ -254,6 +254,12 @@ local function LDB_OnLeave(self)
    end
 end
 
+local function LDB_OnReceiveDrag(self, button)
+   if self._ondrag then
+      self._ondrag(self, button)
+   end
+end
+
 local function LDB_OnClick(self, button)
    if self._onclick then
       LDB_OnLeave(self)
@@ -458,6 +464,14 @@ local updaters = {
                    frame:SetScript("OnClick", LDB_OnClick)
                 else
                    frame:SetScript("OnClick", nil)
+                end
+             end,
+   OnReceiveDrag = function(frame, value)
+                frame._ondrag = value
+                if value then
+                   frame:SetScript("OnReceiveDrag", LDB_OnReceiveDrag)
+                else
+                   frame:SetScript("OnReceiveDrag", nil)
                 end
              end,
    tooltiptext = function(frame, value, name, object)
@@ -2242,6 +2256,7 @@ do
       frame:SetScript("OnEnter", nil)
       frame:SetScript("OnLeave", nil)
       frame:SetScript("OnClick", nil)
+      frame:SetScript("OnReceiveDrag", nil)
       if bin and not bin.disabled then self:SortFrames(bin) end
    end
 end
