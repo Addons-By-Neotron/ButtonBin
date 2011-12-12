@@ -1,0 +1,37 @@
+## Interface: 40300
+## X-Compatible-With: 40300
+## Title: Button Bin
+## Notes: A bin for all your LibDataBroker buttons
+## Author: NeoTron
+## Version: 1.0.@project-revision@
+## DefaultState: enabled
+## X-Category: Interface Enhancements
+## X-eMail: neotron@gmail.com
+
+## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets, LibLogger-1.0, LibJostle-3.0
+## X-Embeds: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets, LibJostle-3.0
+## SavedVariables: ButtonBinDB
+
+# Library files
+#@no-lib-strip@
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+Libs\AceAddon-3.0\AceAddon-3.0.xml
+Libs\AceDB-3.0\AceDB-3.0.xml
+Libs\AceDBOptions-3.0\AceDBOptions-3.0.xml
+Libs\AceGUI-3.0\AceGUI-3.0.xml
+Libs\AceConfig-3.0\AceConfig-3.0.xml
+Libs\AceConsole-3.0\AceConsole-3.0.xml
+Libs\AceEvent-3.0\AceEvent-3.0.xml
+Libs\AceTimer-3.0\AceTimer-3.0.xml
+Libs\AceLocale-3.0\AceLocale-3.0.xml
+Libs\LibSharedMedia-3.0\lib.xml
+Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
+Libs\LibBetterBlizzOptions-1.0\lib.xml
+Libs\LibJostle-3.0\lib.xml
+#@end-no-lib-strip@
+
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+ButtonBin.lua
+Locales.xml
+
