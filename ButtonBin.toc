@@ -1,5 +1,5 @@
-## Interface: 50400
-## X-Compatible-With: 50400
+## Interface: 60000
+## X-Compatible-With: 60000
 ## Title: Button Bin
 ## Notes: A bin for all your LibDataBroker buttons
 ## Author: NeoTron
