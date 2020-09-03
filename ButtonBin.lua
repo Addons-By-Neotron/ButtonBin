@@ -2302,11 +2302,11 @@ do
          unusedBinFrames[#unusedBinFrames] = nil
       else
 --         mod:Print("Creating new bin frame");
-         f = setmetatable(CreateFrame("Frame", "ButtonBinParent:"..numBinFrames, UIParent), mod.binMetaTable_mt)
+         f = setmetatable(CreateFrame("Frame", "ButtonBinParent:"..numBinFrames, UIParent, BackdropTemplateMixin and "BackdropTemplate"), mod.binMetaTable_mt)
          f:EnableMouse(true)
          f:SetScript("OnEnter", function(self) self._isMouseOver = true self:ShowOrHide(nil, true) end)
          f:SetScript("OnLeave", function(self) self._isMouseOver = nil  self:ShowOrHide(true) end)
-         f.mover = CreateFrame("Button", "ButtonBinMover", UIParent)
+         f.mover = CreateFrame("Button", "ButtonBinMover", UIParent, BackdropTemplateMixin and "BackdropTemplate")
          f.mover:EnableMouse(true)
          f.mover:SetMovable(true)
          f.mover:SetBackdrop(bgFrame)
