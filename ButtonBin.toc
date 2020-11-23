@@ -1,9 +1,9 @@
-## Interface: 90001
-## X-Compatible-With: 90001
+## Interface: 90002
+## X-Compatible-With: 90002
 ## Title: Button Bin
 ## Notes: A bin for all your LibDataBroker buttons
 ## Author: NeoTron
-## Version: 9.0.1
+## Version: 9.0.2
 ## DefaultState: enabled
 ## X-Category: Interface Enhancements
 ## X-eMail: neotron@gmail.com
