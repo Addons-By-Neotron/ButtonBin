@@ -1,7 +1,7 @@
-## Interface: 90105
-## Interface-Classic: 11401
-## Interface-BCC: 20503
-## Interface-Retail: 90105
+## Interface: 90205
+## Interface-Classic: 11403
+## Interface-BCC: 20504
+## Interface-Retail: 90205
 ## X-Curse-Project-ID: 13591
 ## X-WoWI-ID: 10474
 ## Title: Button Bin
