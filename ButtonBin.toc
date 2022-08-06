@@ -1,9 +1,10 @@
 ## Interface: 90205
 ## Interface-Classic: 11403
 ## Interface-BCC: 20504
-## Interface-Retail: 90205
+## Interface-Wrath: 30400
 ## X-Curse-Project-ID: 13591
 ## X-WoWI-ID: 10474
+## X-Wago-ID: 2jK8QeGy
 ## Title: Button Bin
 ## Notes: A bin for all your LibDataBroker buttons
 ## Author: NeoTron
