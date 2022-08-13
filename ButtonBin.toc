@@ -33,7 +33,7 @@ Libs\AceLocale-3.0\AceLocale-3.0.xml
 Libs\LibSharedMedia-3.0\lib.xml
 Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
 Libs\LibBetterBlizzOptions-1.0\lib.xml
-Libs\LibJostle-3.0\lib.xml
+Libs\LibJostle-3.0\LibJostle-3.0.lua
 #@end-no-lib-strip@
 
 Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
