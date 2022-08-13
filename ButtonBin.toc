@@ -13,8 +13,8 @@
 ## X-Category: Interface Enhancements
 ## X-eMail: neotron@gmail.com
 
-## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets, LibLogger-1.0, LibJostle-3.0
-## X-Embeds: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets, LibJostle-3.0
+## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets, LibLogger-1.0, LibJostle-3.0, LibDataBroker-1.1
+## X-Embeds: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets, LibJostle-3.0, LibDataBroker-1.1
 ## SavedVariables: ButtonBinDB
 
 # Library files
@@ -34,8 +34,8 @@ Libs\LibSharedMedia-3.0\lib.xml
 Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
 Libs\LibBetterBlizzOptions-1.0\lib.xml
 Libs\LibJostle-3.0\LibJostle-3.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 #@end-no-lib-strip@
 
-Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 ButtonBin.lua
 
