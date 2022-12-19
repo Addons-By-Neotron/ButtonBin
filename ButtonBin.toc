@@ -32,8 +32,7 @@ Libs\AceTimer-3.0\AceTimer-3.0.xml
 Libs\AceLocale-3.0\AceLocale-3.0.xml
 Libs\LibSharedMedia-3.0\lib.xml
 Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
-Libs\LibBetterBlizzOptions-1.0\lib.xml
-Libs\LibJostle-3.0\LibJostle-3.0.lua
+LibsForked\LibJostle-3.0\LibJostle-3.0.lua
 Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 #@end-no-lib-strip@
 
