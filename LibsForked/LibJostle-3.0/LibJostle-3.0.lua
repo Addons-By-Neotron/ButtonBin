@@ -322,6 +322,26 @@ end
 local function isClose(alpha, bravo)
 	return math.abs(alpha - bravo) < 0.1
 end
+local function dumpTable(tbl, indent)
+    if not indent then indent = 0 end
+    if type(tbl) ~= 'table' then return tostring(tbl) end
+
+    local formatStr = string.rep("  ", indent) -- Create an indentation string
+    local endFormatStr = string.rep("  ", indent - 1)
+    local result = "{\n"
+
+    for k, v in pairs(tbl) do
+        local formattedKey = type(k) == "number" and k or '"' .. k .. '"'
+        result = result .. formatStr .. "[" .. formattedKey .. "] = "
+        if type(v) == "table" then
+            result = result .. dumpTable(v, indent + 1) .. ",\n"
+        else
+            result = result .. tostring(v) .. ",\n"
+        end
+    end
+
+    return result .. endFormatStr .. "}"
+end
 
 function Jostle:Refresh(...)
 	if not fullyInitted then
@@ -386,116 +406,116 @@ function Jostle:Refresh(...)
 		if type(frame) == "string" then
 			frame = _G[frame]
 		end
+		if frame then
+			local framescale = frame and frame.GetScale and frame:GetScale() or 1
+			if ((frame and frame.IsUserPlaced and not frame:IsUserPlaced()) or ((frame == DEFAULT_CHAT_FRAME or frame == ChatFrame2) and SIMPLE_CHAT == "1") or frame == FramerateLabel) and (frame ~= ChatFrame2 or SIMPLE_CHAT == "1") then
+				local frameData = blizzardFramesData[frame]
+				if (select(2, frame:GetPoint(1)) ~= UIParent and select(2, frame:GetPoint(1)) ~= WorldFrame) then
+					-- do nothing
+				elseif frame == PlayerFrame and (CT_PlayerFrame_Drag or Gypsy_PlayerFrameCapsule) then
+					-- do nothing
+				elseif frame == TargetFrame and (CT_TargetFrame_Drag or Gypsy_TargetFrameCapsule) then
+					-- do nothing
+				elseif frame == PartyMemberFrame1 and (CT_MovableParty1_Drag or Gypsy_PartyFrameCapsule) then
+					-- do nothing
+				elseif frame == MainMenuBar and Gypsy_HotBarCapsule then
+					-- do nothing
+				elseif frame == MinimapCluster and select(3, frame:GetPoint(1)) ~= "TOPRIGHT" then
+					-- do nothing
+				elseif frame == DurabilityFrame and DurabilityFrame:IsShown() and (DurabilityFrame:GetLeft() > GetScreenWidth() or DurabilityFrame:GetRight() < 0 or DurabilityFrame:GetBottom() > GetScreenHeight() or DurabilityFrame:GetTop() < 0) then
+					DurabilityFrame:Hide()
+				elseif frame == FramerateLabel and ((frameData.lastX and not isClose(frameData.lastX, frame:GetLeft())) or not isClose(WorldFrame:GetHeight() * WorldFrame:GetScale(), UIParent:GetHeight() * UIParent:GetScale()))  then
+					-- do nothing
+				elseif frame == PlayerFrame or frame == MainMenuBar or frame == TargetFrame or frame == ConsolidatedBuffs or frame == BuffFrame or frame == CastingBarFrame or frame == TutorialFrameParent or frame == FramerateLabel or frame == DurabilityFrame or frame == WatchFrame or not (frameData.lastScale and frame.GetScale and frameData.lastScale == frame:GetScale()) or not (frameData.lastX and frameData.lastY and (not isClose(frameData.lastX, frame:GetLeft()) or not isClose(frameData.lastY, frame:GetTop()))) then
+					local anchor
+					local anchorAlt
+					local width, height = GetScreenWidth(), GetScreenHeight()
+					local x
 
-		local framescale = frame and frame.GetScale and frame:GetScale() or 1
-
-		if ((frame and frame.IsUserPlaced and not frame:IsUserPlaced()) or ((frame == DEFAULT_CHAT_FRAME or frame == ChatFrame2) and SIMPLE_CHAT == "1") or frame == FramerateLabel) and (frame ~= ChatFrame2 or SIMPLE_CHAT == "1") then
-			local frameData = blizzardFramesData[frame]
-			if (select(2, frame:GetPoint(1)) ~= UIParent and select(2, frame:GetPoint(1)) ~= WorldFrame) then
-				-- do nothing
-			elseif frame == PlayerFrame and (CT_PlayerFrame_Drag or Gypsy_PlayerFrameCapsule) then
-				-- do nothing
-			elseif frame == TargetFrame and (CT_TargetFrame_Drag or Gypsy_TargetFrameCapsule) then
-				-- do nothing
-			elseif frame == PartyMemberFrame1 and (CT_MovableParty1_Drag or Gypsy_PartyFrameCapsule) then
-				-- do nothing
-			elseif frame == MainMenuBar and Gypsy_HotBarCapsule then
-				-- do nothing
-			elseif frame == MinimapCluster and select(3, frame:GetPoint(1)) ~= "TOPRIGHT" then
-				-- do nothing
-			elseif frame == DurabilityFrame and DurabilityFrame:IsShown() and (DurabilityFrame:GetLeft() > GetScreenWidth() or DurabilityFrame:GetRight() < 0 or DurabilityFrame:GetBottom() > GetScreenHeight() or DurabilityFrame:GetTop() < 0) then
-				DurabilityFrame:Hide()
-			elseif frame == FramerateLabel and ((frameData.lastX and not isClose(frameData.lastX, frame:GetLeft())) or not isClose(WorldFrame:GetHeight() * WorldFrame:GetScale(), UIParent:GetHeight() * UIParent:GetScale()))  then
-				-- do nothing
-			elseif frame == PlayerFrame or frame == MainMenuBar or frame == TargetFrame or frame == ConsolidatedBuffs or frame == BuffFrame or frame == CastingBarFrame or frame == TutorialFrameParent or frame == FramerateLabel or frame == DurabilityFrame or frame == WatchFrame or not (frameData.lastScale and frame.GetScale and frameData.lastScale == frame:GetScale()) or not (frameData.lastX and frameData.lastY and (not isClose(frameData.lastX, frame:GetLeft()) or not isClose(frameData.lastY, frame:GetTop()))) then
-				local anchor
-				local anchorAlt
-				local width, height = GetScreenWidth(), GetScreenHeight()
-				local x
-
-				if frame:GetRight() and frame:GetLeft() then
-					local anchorFrame = UIParent
-					if frame == GroupLootFrame1 or frame == FramerateLabel then
-						x = 0
-						anchor = ""
-					elseif frame:GetRight() / framescale <= width / 2 then
-						x = frame:GetLeft() / framescale
-						anchor = "LEFT"
-					else
-						x = frame:GetRight() - width / framescale
-						anchor = "RIGHT"
-					end
-					local y = blizzardFramesData[frame].y
-					local offset = 0
-					if blizzardFramesData[frame].top then
-						anchor = "TOP" .. anchor
-						offset = ( topOffset - height ) / framescale
-					else
-						anchor = "BOTTOM" .. anchor
-						offset = bottomOffset / framescale
-					end
-					if frame == MinimapCluster and MinimapBorderTop and not MinimapBorderTop:IsShown() then
-						offset = offset + MinimapBorderTop:GetHeight() * 3/5
-					elseif frame == ConsolidatedBuffs and TicketStatusFrame:IsShown() then
-						offset = offset - TicketStatusFrame:GetHeight() * TicketStatusFrame:GetScale()
-					elseif frame == DEFAULT_CHAT_FRAME then
-						y = MainMenuBar:GetHeight() * MainMenuBar:GetScale() + 32
-						if StanceBarFrame and (PetActionBarFrame:IsShown() or StanceBarFrame:IsShown()) then
-							offset = offset + StanceBarFrame:GetHeight() * StanceBarFrame:GetScale()
+					if frame:GetRight() and frame:GetLeft() then
+						local anchorFrame = UIParent
+						if frame == GroupLootFrame1 or frame == FramerateLabel then
+							x = 0
+							anchor = ""
+						elseif frame:GetRight() / framescale <= width / 2 then
+							x = frame:GetLeft() / framescale
+							anchor = "LEFT"
+						else
+							x = frame:GetRight() - width / framescale
+							anchor = "RIGHT"
 						end
-						if MultiBarBottomLeft:IsShown() then
-							offset = offset + MultiBarBottomLeft:GetHeight() * MultiBarBottomLeft:GetScale() - 21
+						local y = blizzardFramesData[frame].y
+						local offset = 0
+						if blizzardFramesData[frame].top then
+							anchor = "TOP" .. anchor
+							offset = ( topOffset - height ) / framescale
+						else
+							anchor = "BOTTOM" .. anchor
+							offset = bottomOffset / framescale
 						end
-					elseif frame == ChatFrame2 then
-						y = MainMenuBar:GetHeight() * MainMenuBar:GetScale() + 32
-						if MultiBarBottomRight:IsShown() then
-							offset = offset + MultiBarBottomRight:GetHeight() * MultiBarBottomRight:GetScale() - 21
-						end
-					elseif frame == GroupLootFrame1 or frame == TutorialFrameParent or frame == FramerateLabel then
-						if MultiBarBottomLeft:IsShown() or MultiBarBottomRight:IsShown() then
-							offset = offset + MultiBarBottomLeft:GetHeight() * MultiBarBottomLeft:GetScale()
-						end
-					elseif frame == DurabilityFrame or frame == WatchFrame then
-						anchorFrame = MinimapCluster
-						x = 0
-						y = 0
-						offset = 0
-						if frame == WatchFrame and DurabilityFrame:IsShown() then
-							y = y - DurabilityFrame:GetHeight() * DurabilityFrame:GetScale()
-						end
-						if frame == DurabilityFrame then
-							x = -20
-						end
-						anchor = "TOPRIGHT"
-						anchorAlt = "BOTTOMRIGHT"
-						if MultiBarRight:IsShown() then
-							x = x - MultiBarRight:GetWidth() * MultiBarRight:GetScale()
-							if MultiBarLeft:IsShown() then
-								x = x - MultiBarLeft:GetWidth() * MultiBarLeft:GetScale()
+						if frame == MinimapCluster and MinimapBorderTop and not MinimapBorderTop:IsShown() then
+							offset = offset + MinimapBorderTop:GetHeight() * 3/5
+						elseif frame == ConsolidatedBuffs and TicketStatusFrame:IsShown() then
+							offset = offset - TicketStatusFrame:GetHeight() * TicketStatusFrame:GetScale()
+						elseif frame == DEFAULT_CHAT_FRAME then
+							y = MainMenuBar:GetHeight() * MainMenuBar:GetScale() + 32
+							if StanceBarFrame and (PetActionBarFrame:IsShown() or StanceBarFrame:IsShown()) then
+								offset = offset + StanceBarFrame:GetHeight() * StanceBarFrame:GetScale()
 							end
-						end
-					elseif frame == OrderHallCommandBar and OrderHallCommandBar:IsShown() then
+							if MultiBarBottomLeft:IsShown() then
+								offset = offset + MultiBarBottomLeft:GetHeight() * MultiBarBottomLeft:GetScale() - 21
+							end
+						elseif frame == ChatFrame2 then
+							y = MainMenuBar:GetHeight() * MainMenuBar:GetScale() + 32
+							if MultiBarBottomRight:IsShown() then
+								offset = offset + MultiBarBottomRight:GetHeight() * MultiBarBottomRight:GetScale() - 21
+							end
+						elseif frame == GroupLootFrame1 or frame == TutorialFrameParent or frame == FramerateLabel then
+							if MultiBarBottomLeft:IsShown() or MultiBarBottomRight:IsShown() then
+								offset = offset + MultiBarBottomLeft:GetHeight() * MultiBarBottomLeft:GetScale()
+							end
+						elseif frame == DurabilityFrame or frame == WatchFrame then
+							anchorFrame = MinimapCluster
+							x = 0
+							y = 0
+							offset = 0
+							if frame == WatchFrame and DurabilityFrame:IsShown() then
+								y = y - DurabilityFrame:GetHeight() * DurabilityFrame:GetScale()
+							end
+							if frame == DurabilityFrame then
+								x = -20
+							end
+							anchor = "TOPRIGHT"
+							anchorAlt = "BOTTOMRIGHT"
+							if MultiBarRight:IsShown() then
+								x = x - MultiBarRight:GetWidth() * MultiBarRight:GetScale()
+								if MultiBarLeft:IsShown() then
+									x = x - MultiBarLeft:GetWidth() * MultiBarLeft:GetScale()
+								end
+							end
+						elseif frame == OrderHallCommandBar and OrderHallCommandBar:IsShown() then
 							anchorAlt = "TOPLEFT"
 							anchor = "TOPLEFT"
-					end
-					if frame == FramerateLabel then
-						anchorFrame = WorldFrame
-					end
-					frame:ClearAllPoints()
-					frame:SetPoint(anchor, anchorFrame, anchorAlt or anchor, x, y + offset)
-					--Calling ClearAllPoints() on MainMenuBar causes StatusTrackingBarManager to hide in 8.2.5+
-					--This fixes it, but also throw action blocked errors any time you enter combat, even if you never perform frame updates in combat here
-					--MainMenuBar execution path becomes tainted calling StatusTrackingBarManager:UpdateBarsShown()
-					--Sadly, no other fix i found could work. If you call ClearAllPoints() on MainMenuBar you break StatusTrackingBarManager
-					--if frame == MainMenuBar then
-					--	StatusTrackingBarManager:UpdateBarsShown()
-					--end
-					blizzardFramesData[frame].lastX = frame:GetLeft()
-					blizzardFramesData[frame].lastY = frame:GetTop()
-					blizzardFramesData[frame].lastScale = framescale
+						end
+						if frame == FramerateLabel then
+							anchorFrame = WorldFrame
+						end
+						frame:ClearAllPoints()
+						frame:SetPoint(anchor, anchorFrame, anchorAlt or anchor, x, y + offset)
+						--Calling ClearAllPoints() on MainMenuBar causes StatusTrackingBarManager to hide in 8.2.5+
+						--This fixes it, but also throw action blocked errors any time you enter combat, even if you never perform frame updates in combat here
+						--MainMenuBar execution path becomes tainted calling StatusTrackingBarManager:UpdateBarsShown()
+						--Sadly, no other fix i found could work. If you call ClearAllPoints() on MainMenuBar you break StatusTrackingBarManager
+						--if frame == MainMenuBar then
+						--	StatusTrackingBarManager:UpdateBarsShown()
+						--end
+						blizzardFramesData[frame].lastX = frame:GetLeft()
+						blizzardFramesData[frame].lastY = frame:GetTop()
+						blizzardFramesData[frame].lastScale = framescale
 
-					if frame == OrderHallCommandBar then
-						frame:SetPoint("RIGHT", "UIParent" ,"RIGHT",0, 0);
+						if frame == OrderHallCommandBar then
+							frame:SetPoint("RIGHT", "UIParent" ,"RIGHT",0, 0);
+						end
 					end
 				end
 			end
