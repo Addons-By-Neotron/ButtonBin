@@ -1,4 +1,4 @@
-## Interface: 100207
+## Interface: 110000
 ## LoadOnDemand: 1
 ## Title: Lib: Jostle-3.0
 ## Notes: A library to handle rearrangement of blizzard's frames when bars are added to the sides of the screen.
