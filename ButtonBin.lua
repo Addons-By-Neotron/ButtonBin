@@ -7,7 +7,7 @@ Some code from Fortress was used in this addon with permission from the
 author Borlox.
 **********************************************************************
 ]]
-ButtonBin = LibStub("AceAddon-3.0"):NewAddon("ButtonBin", "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0" )
+ButtonBin = LibStub("AceAddon-3.0"):NewAddon("ButtonBin", "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0",  "LibMagicUtil-1.0")
 
 local LibStub = LibStub
 local LDB = LibStub:GetLibrary("LibDataBroker-1.1")
@@ -1883,8 +1883,8 @@ function mod:SetupOptions()
 end
 
 function mod:ToggleConfigDialog(frame)
-   InterfaceOptionsFrame_OpenToCategory(mod.profile)
-   InterfaceOptionsFrame_OpenToCategory(mod.main)
+   mod:InterfaceOptionsFrame_OpenToCategory(mod.profile)
+   mod:InterfaceOptionsFrame_OpenToCategory(mod.main)
 end
 
 function mod:ToggleCollapsed(frame)

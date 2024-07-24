@@ -34,6 +34,7 @@ Libs\LibSharedMedia-3.0\lib.xml
 Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
 LibsForked\LibJostle-3.0\LibJostle-3.0.lua
 Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibMagicUtil-1.0\LibMagicUtil-1.0\lib.xml
 #@end-no-lib-strip@
 
 ButtonBin.lua
