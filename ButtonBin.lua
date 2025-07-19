@@ -818,7 +818,7 @@ function mod:ToggleButtonLock()
          mod:Print("Locking button positions.")
       end
    for name,frame in pairs(buttonFrames) do
-      frame:RegisterForDrag(dragButton)
+      frame:RegisterForDrag(dragButton or "")
       frame:SetMovable(unlockButtons)
       if unlockButtons then
          frame._onenter = frame:GetScript("OnEnter")
