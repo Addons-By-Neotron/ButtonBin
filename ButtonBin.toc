@@ -1,5 +1,5 @@
 ## Interface: 110107
-## Interface-Classic: 11403
+## Interface-Classic: 50500
 ## Interface-BCC: 20504
 ## Interface-Cata: 40402
 ## Interface-Mists: 50500
