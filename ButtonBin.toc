@@ -9,7 +9,7 @@
 ## Title: Button Bin
 ## Notes: A bin for all your LibDataBroker buttons
 ## Author: NeoTron
-## Version: 9.0.5
+## Version: @project-date-iso@-@build-timestamp@
 ## DefaultState: enabled
 ## X-Category: Interface Enhancements
 ## X-eMail: neotron@gmail.com
