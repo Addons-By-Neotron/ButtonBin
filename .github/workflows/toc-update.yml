@@ -11,16 +11,16 @@ jobs:
       - name: Clone project
         uses: actions/checkout@v4.1.1
       - name: Update TOC Interface version
-          uses: p3lim/toc-interface-updater@v4
-          with:
-            beta: true
-            ptr: true
-            flavor: |
-              retail
-              mists
-              wrath
-              tbc
-              vanilla
+        uses: p3lim/toc-interface-updater@v4
+        with:
+          beta: true
+          ptr: true
+          flavor: |
+            retail
+            mists
+            wrath
+            tbc
+            vanilla
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6.0.1
         with:
