@@ -1,4 +1,4 @@
-## Interface: 110107, 120000,120001
+## Interface: 110207, 120000, 120001, 50503, 38000, 20505, 11508
 ## X-Curse-Project-ID: 13591
 ## X-WoWI-ID: 10474
 ## X-Wago-ID: 2jK8QeGy
