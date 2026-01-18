@@ -157,7 +157,9 @@ JostleFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 JostleFrame:RegisterEvent("ACTIONBAR_UPDATE_STATE")
 
 function Jostle:ACTIONBAR_UPDATE_STATE()
-	self:Refresh(MainMenuBar)
+	if MainMenuBar then
+		self:Refresh(MainMenuBar)
+	end
 end
 
 function Jostle:PLAYER_ENTERING_WORLD()
@@ -458,21 +460,27 @@ function Jostle:Refresh(...)
 						elseif frame == ConsolidatedBuffs and TicketStatusFrame:IsShown() then
 							offset = offset - TicketStatusFrame:GetHeight() * TicketStatusFrame:GetScale()
 						elseif frame == DEFAULT_CHAT_FRAME then
-							y = MainMenuBar:GetHeight() * MainMenuBar:GetScale() + 32
+							if MainMenuBar then
+								y = MainMenuBar:GetHeight() * MainMenuBar:GetScale() + 32
+							end
 							if StanceBarFrame and (PetActionBarFrame:IsShown() or StanceBarFrame:IsShown()) then
 								offset = offset + StanceBarFrame:GetHeight() * StanceBarFrame:GetScale()
 							end
-							if MultiBarBottomLeft:IsShown() then
+							if MultiBarBottomLeft and MultiBarBottomLeft:IsShown() then
 								offset = offset + MultiBarBottomLeft:GetHeight() * MultiBarBottomLeft:GetScale() - 21
 							end
 						elseif frame == ChatFrame2 then
-							y = MainMenuBar:GetHeight() * MainMenuBar:GetScale() + 32
-							if MultiBarBottomRight:IsShown() then
+							if MainMenuBar then
+								y = MainMenuBar:GetHeight() * MainMenuBar:GetScale() + 32
+							end
+							if MultiBarBottomRight and MultiBarBottomRight:IsShown() then
 								offset = offset + MultiBarBottomRight:GetHeight() * MultiBarBottomRight:GetScale() - 21
 							end
 						elseif frame == GroupLootFrame1 or frame == TutorialFrameParent or frame == FramerateLabel then
-							if MultiBarBottomLeft:IsShown() or MultiBarBottomRight:IsShown() then
-								offset = offset + MultiBarBottomLeft:GetHeight() * MultiBarBottomLeft:GetScale()
+							if (MultiBarBottomLeft and MultiBarBottomLeft:IsShown()) or (MultiBarBottomRight and MultiBarBottomRight:IsShown()) then
+								if MultiBarBottomLeft then
+									offset = offset + MultiBarBottomLeft:GetHeight() * MultiBarBottomLeft:GetScale()
+								end
 							end
 						elseif frame == DurabilityFrame or frame == WatchFrame then
 							anchorFrame = MinimapCluster
