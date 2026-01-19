@@ -7,6 +7,7 @@
 ## Author: NeoTron
 ## Version: @project-version@
 ## DefaultState: enabled
+## IconTexture: Interface\AddOns\ButtonBin\bin
 ## X-Category: Interface Enhancements
 ## X-eMail: neotron@gmail.com
 
