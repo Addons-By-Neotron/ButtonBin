@@ -2091,6 +2091,7 @@ do
             self.db.bin = destParent.binId
             self:SetParent(destParent)
             bdb = db.bins[destParent.binId]
+            mod:UpdateBlock(self.name, self, true)
          end
          local inserted
          if destParent.button == destFrame then
@@ -2355,17 +2356,8 @@ end
 
 
 function mod:MouseIsOver(frame)
-   local x, y = GetCursorPosition();
-   x = x / frame:GetEffectiveScale();
-   y = y / frame:GetEffectiveScale();
-
-   local left = frame:GetLeft();
-   local right = frame:GetRight();
-   local top = frame:GetTop();
-   local bottom = frame:GetBottom();
-   if not left then return nil end
-   if ( (x > left and x < right) and (y > bottom and y < top) ) then
-      return true
+   if frame and frame.IsMouseOver then
+      return frame:IsMouseOver()
    end
 end
 
