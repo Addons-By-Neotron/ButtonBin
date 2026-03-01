@@ -2043,6 +2043,297 @@ do
    local numBlocks = 1
    local oldSorted
 
+   -- Drag preview state
+   local dragPreview     -- reusable preview frame shown at cursor
+   local dragPlaceholder -- placeholder frame inserted into destination bin layout
+   local PLACEHOLDER_NAME = "__BBDragPlaceholder__"
+   local dragOrigBin     -- original bin the button was dragged from
+   local dragOrigText    -- original buttonBinText before drag
+   local dragLastHover   -- last hovered bin (to avoid redundant updates)
+   local dragSource      -- the actual button frame being dragged
+
+   local function GetDragPreview()
+      if not dragPreview then
+         dragPreview = CreateFrame("Frame", nil, UIParent)
+         dragPreview:SetFrameStrata("TOOLTIP")
+         dragPreview:SetFrameLevel(100)
+         dragPreview.icon = dragPreview:CreateTexture(nil, "ARTWORK")
+         dragPreview.label = dragPreview:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+         dragPreview:SetAlpha(0.85)
+      end
+      return dragPreview
+   end
+
+   local function GetDragPlaceholder()
+      if not dragPlaceholder then
+         dragPlaceholder = CreateFrame("Button", "ButtonBinDragPlaceholder")
+         dragPlaceholder.icon = dragPlaceholder:CreateTexture()
+         dragPlaceholder.label = dragPlaceholder:CreateFontString(nil, nil, "GameFontNormal")
+         -- resizeWindow is assigned in Button_OnDragStart after Frame_ResizeWindow is defined
+         dragPlaceholder:SetAlpha(0.5)
+      end
+      return dragPlaceholder
+   end
+
+   local function CopyIconToFrame(destFrame, srcFrame)
+      local tex = srcFrame.icon:GetTexture()
+      if tex then
+         destFrame.icon:SetTexture(tex)
+      end
+      destFrame.icon:SetVertexColor(srcFrame.icon:GetVertexColor())
+      destFrame.icon:SetTexCoord(srcFrame.icon:GetTexCoord())
+   end
+
+   local function UpdatePreviewAppearance(preview, srcFrame, bin)
+      CopyIconToFrame(preview, srcFrame)
+      -- Get bin settings for formatting
+      local bdb, sdb = mod:GetBinSettings(bin)
+      local iconSize = sdb.size
+      local name = srcFrame.name
+
+      -- Determine text: temporarily reparent source to compute, then read result
+      local origParent = srcFrame:GetParent()
+      srcFrame:SetParent(bin)
+      mod:UpdateBlock(name, srcFrame, true)
+      local text = srcFrame.buttonBinText
+      srcFrame:SetParent(origParent)
+      -- Restore original text on the source frame
+      srcFrame.buttonBinText = dragOrigText
+
+      local hideIcon = mod:DataBlockConfig(name, "hideIcon", bdb.hideIcons)
+      local showLabel = not not text
+
+      preview.icon:ClearAllPoints()
+      preview.label:ClearAllPoints()
+
+      if hideIcon and showLabel then
+         preview.icon:Hide()
+         preview.icon:SetWidth(0)
+         preview.icon:SetHeight(0)
+         preview.label:SetPoint("LEFT", preview)
+      else
+         preview.icon:Show()
+         preview.icon:SetWidth(iconSize)
+         preview.icon:SetHeight(iconSize)
+         if bdb.flipicons then
+            preview.icon:SetPoint("RIGHT", preview)
+            preview.label:SetPoint("RIGHT", preview.icon, "LEFT", -2, 0)
+         else
+            preview.icon:SetPoint("LEFT", preview)
+            preview.label:SetPoint("LEFT", preview.icon, "RIGHT", 2, 0)
+         end
+      end
+
+      local width
+      if showLabel then
+         if bdb.font and bdb.fontsize then
+            preview.label:SetFont(media:Fetch("font", bdb.font), bdb.fontsize)
+         end
+         preview.label:SetText(text)
+         width = preview.label:GetStringWidth()
+         if width > 0 then
+            preview.label:SetWidth(width)
+            preview.label:Show()
+            if not hideIcon then
+               width = width + iconSize + 6
+            else
+               width = width + 3
+            end
+         else
+            width = iconSize
+         end
+      else
+         preview.label:SetText("")
+         preview.label:Hide()
+         width = iconSize
+      end
+      preview:SetWidth(width)
+      preview:SetHeight(iconSize)
+   end
+
+   -- Remove placeholder from a bin's layout and re-sort
+   local function RemovePlaceholder(bin)
+      local placeholder = GetDragPlaceholder()
+      buttonFrames[PLACEHOLDER_NAME] = nil
+      placeholder:Hide()
+      placeholder:SetParent(nil)
+      if bin then
+         local bdb = db.bins[bin.binId]
+         for i = #bdb.sortedButtons, 1, -1 do
+            if bdb.sortedButtons[i] == PLACEHOLDER_NAME then
+               tremove(bdb.sortedButtons, i)
+               break
+            end
+         end
+         mod:SortFrames(bin)
+      end
+   end
+
+   -- Set up the placeholder's appearance for a given bin (call once per bin enter)
+   local function SetupPlaceholder(bin, srcFrame)
+      local placeholder = GetDragPlaceholder()
+
+      placeholder:SetParent(bin)
+      placeholder.name = PLACEHOLDER_NAME
+      placeholder._has_texture = srcFrame._has_texture
+      CopyIconToFrame(placeholder, srcFrame)
+
+      -- Compute text as it would appear in this bin
+      local origParent = srcFrame:GetParent()
+      srcFrame:SetParent(bin)
+      mod:UpdateBlock(srcFrame.name, srcFrame, true)
+      placeholder.buttonBinText = srcFrame.buttonBinText
+      srcFrame:SetParent(origParent)
+      srcFrame.buttonBinText = dragOrigText
+
+      buttonFrames[PLACEHOLDER_NAME] = placeholder
+   end
+
+   local dragLastInsertIdx -- track insert index to avoid redundant re-sorts
+
+   -- Compute where the placeholder should be inserted based on cursor position.
+   -- Uses MouseIsOver on individual buttons (works regardless of placeholder layout shifts).
+   local function ComputePlaceholderIndex(bin)
+      local bdb = db.bins[bin.binId]
+      local sorted = bdb.sortedButtons
+      local cx, cy = GetCursorPosition()
+      local binScale = bin:GetEffectiveScale()
+
+      -- Check if cursor is over the bin header button → insert at beginning
+      if not bdb.hideBinIcon and mod:MouseIsOver(bin.button) then
+         return 1
+      end
+
+      -- Check if cursor is directly over a real button → before/after based on midpoint
+      for i, name in ipairs(sorted) do
+         if name ~= PLACEHOLDER_NAME then
+            local frame = buttonFrames[name]
+            if frame and frame:IsShown() and mod:MouseIsOver(frame) then
+               if bdb.width > 1 then
+                  local mid = (frame:GetLeft() + frame:GetWidth() / 2) * binScale
+                  if bdb.flipx then
+                     return cx < mid and i + 1 or i
+                  else
+                     return cx > mid and i + 1 or i
+                  end
+               else
+                  local mid = (frame:GetBottom() + frame:GetHeight() / 2) * binScale
+                  if bdb.flipy then
+                     return cy > mid and i + 1 or i
+                  else
+                     return cy < mid and i + 1 or i
+                  end
+               end
+            end
+         end
+      end
+
+      -- Cursor is not directly over any real button or the bin header.
+      -- Keep the placeholder where it is, or nil if not yet placed.
+      return dragLastInsertIdx
+   end
+
+   -- Update placeholder position within the bin based on cursor
+   local function UpdatePlaceholderPosition(bin)
+      local bdb = db.bins[bin.binId]
+      local sorted = bdb.sortedButtons
+
+      -- Remove placeholder from current position
+      for i = #sorted, 1, -1 do
+         if sorted[i] == PLACEHOLDER_NAME then
+            tremove(sorted, i)
+            break
+         end
+      end
+
+      -- Compute new position and insert
+      local idx = ComputePlaceholderIndex(bin)
+      if not idx then
+         -- Not over any button yet, don't show placeholder
+         GetDragPlaceholder():Hide()
+         return
+      end
+      if idx > #sorted + 1 then idx = #sorted + 1 end
+      if idx < 1 then idx = 1 end
+
+      if idx ~= dragLastInsertIdx then
+         dragLastInsertIdx = idx
+         tinsert(sorted, idx, PLACEHOLDER_NAME)
+         mod:SortFrames(bin)
+      else
+         tinsert(sorted, idx, PLACEHOLDER_NAME)
+      end
+   end
+
+   -- Saved natural bounds of each bin (captured at drag start, before any placeholder)
+   local dragBinBounds -- { [binId] = {left, right, top, bottom, scale} }
+
+   local DRAG_BOUNDS_PADDING = 30 -- extra pixels around bins for hover detection
+
+   local function CaptureBinBounds()
+      dragBinBounds = {}
+      for id, frame in ipairs(bins) do
+         local l, r, t, b = frame:GetLeft(), frame:GetRight(), frame:GetTop(), frame:GetBottom()
+         if l and r and t and b then
+            local s = frame:GetEffectiveScale()
+            dragBinBounds[id] = {
+               left   = l*s - DRAG_BOUNDS_PADDING,
+               right  = r*s + DRAG_BOUNDS_PADDING,
+               top    = t*s + DRAG_BOUNDS_PADDING,
+               bottom = b*s - DRAG_BOUNDS_PADDING,
+            }
+         end
+      end
+   end
+
+   local function FindHoveredBin()
+      local cx, cy = GetCursorPosition()
+      for id, frame in ipairs(bins) do
+         local b = dragBinBounds[id]
+         if b and cx >= b.left and cx <= b.right and cy >= b.bottom and cy <= b.top then
+            return frame
+         end
+      end
+   end
+
+   local function DragOnUpdate(self)
+      local preview = GetDragPreview()
+
+      -- Position preview at cursor
+      local cx, cy = GetCursorPosition()
+      local scale = UIParent:GetEffectiveScale()
+      preview:ClearAllPoints()
+      preview:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", cx/scale + 16, cy/scale + 8)
+
+      -- Find hovered bin using saved natural bounds (not affected by placeholder)
+      local hoveredBin = FindHoveredBin()
+
+      if hoveredBin then
+         if hoveredBin ~= dragLastHover then
+            -- Remove placeholder from previous bin
+            if dragLastHover then
+               RemovePlaceholder(dragLastHover)
+            end
+            dragLastHover = hoveredBin
+            dragLastInsertIdx = nil
+            -- Update preview with destination bin's formatting
+            UpdatePreviewAppearance(preview, dragSource, hoveredBin)
+            -- Set up placeholder appearance for this bin
+            SetupPlaceholder(hoveredBin, dragSource)
+         end
+         -- Update placeholder position every frame based on cursor
+         UpdatePlaceholderPosition(hoveredBin)
+      else
+         if dragLastHover then
+            RemovePlaceholder(dragLastHover)
+            dragLastHover = nil
+            dragLastInsertIdx = nil
+            -- Restore preview to original bin's formatting
+            UpdatePreviewAppearance(preview, dragSource, dragOrigBin)
+         end
+      end
+   end
+
    local function Button_OnDragStart(self)
       local toRemove
       local bin = self:GetParent()
@@ -2058,88 +2349,82 @@ do
       mod:SortFrames(bin)
       self:ClearAllPoints()
       self:StartMoving()
-      self:SetAlpha(0.75)
-      self:SetFrameLevel(100)
+      self:SetAlpha(0) -- make invisible but keep shown so StartMoving works
+      -- Set up live preview during drag
+      dragOrigBin = bin
+      dragOrigText = self.buttonBinText
+      dragLastHover = nil
+      dragSource = self
+      -- Ensure placeholder has resizeWindow (can't reference Frame_ResizeWindow at definition time)
+      local placeholder = GetDragPlaceholder()
+      if not placeholder.resizeWindow then
+         placeholder.resizeWindow = self.resizeWindow
+      end
+      -- Capture bin bounds now (before any placeholder insertion) for accurate hover detection
+      CaptureBinBounds()
+      local preview = GetDragPreview()
+      UpdatePreviewAppearance(preview, self, bin)
+      preview:Show()
+      preview:SetScript("OnUpdate", DragOnUpdate)
    end
 
    local function Button_OnDragStop(self)
-      local bin = self:GetParent()
-      local bdb = db.bins[bin.binId]
-      local destFrame, destParent
-      self:StopMovingOrSizing()
-      self:SetFrameLevel(98)
-      self:SetAlpha(1.0)
-      for id,frame in ipairs(bins) do
-         if mod:MouseIsOver(frame.button) then
-            destFrame = frame.button
-            destParent = frame
-         end
-      end
+      -- Clean up drag preview
+      local preview = GetDragPreview()
+      preview:SetScript("OnUpdate", nil)
+      preview:Hide()
 
-      if not destFrame then
-         for name,frame in pairs(buttonFrames) do
-            if mod:MouseIsOver(frame) and frame ~= self then
-               destFrame = frame
-               destParent = frame:GetParent()
+      local destBin = dragLastHover
+      local placeholderIdx
+      local bin = dragOrigBin or self:GetParent()
+
+      -- Find where the placeholder is and remove it, remembering its position
+      if destBin then
+         local destBdb = db.bins[destBin.binId]
+         for i = #destBdb.sortedButtons, 1, -1 do
+            if destBdb.sortedButtons[i] == PLACEHOLDER_NAME then
+               placeholderIdx = i
+               tremove(destBdb.sortedButtons, i)
                break
             end
          end
+         buttonFrames[PLACEHOLDER_NAME] = nil
+         GetDragPlaceholder():Hide()
+         GetDragPlaceholder():SetParent(nil)
       end
-      if destFrame and destParent then
-         if destParent ~= bin then
-            --         mod:Print("Changing parent from "..bin.binId.." to "..destParent.binId)
-            self.db.bin = destParent.binId
-            self:SetParent(destParent)
-            bdb = db.bins[destParent.binId]
+
+      self.buttonBinText = dragOrigText
+      dragLastHover = nil
+      dragLastInsertIdx = nil
+      dragBinBounds = nil
+      dragSource = nil
+
+      self:SetParent(bin)
+      self:StopMovingOrSizing()
+      self:SetFrameLevel(98)
+      self:SetAlpha(1.0)
+
+      if destBin and placeholderIdx then
+         -- Drop at the placeholder's position
+         local bdb = db.bins[destBin.binId]
+         if destBin ~= bin then
+            self.db.bin = destBin.binId
+            self:SetParent(destBin)
             mod:UpdateBlock(self.name, self, true)
          end
-         local inserted
-         if destParent.button == destFrame then
-            tinsert(bdb.sortedButtons, 1, self.name)
-            inserted = true
-         else
-            local x, midpoint
-            local add = 0
-            if bdb.width > 1 then
-               x = GetCursorPosition()
-               midpoint = (destFrame:GetLeft() + destFrame:GetWidth()/2)*destParent:GetEffectiveScale()
-               if bdb.flipx then
-                  if x < midpoint then add = 1 end
-               else
-                  if x > midpoint then add = 1 end
-               end
-            else
-               x = select(2, GetCursorPosition())
-               midpoint = (destFrame:GetBottom() + destFrame:GetHeight()/2)*destParent:GetEffectiveScale()
-               if bdb.flipy then
-                  if x > midpoint then add = 1 end
-               else
-                  if x < midpoint then add = 1 end
-               end
-            end
-
-            --         mod:Print("x = "..x..", mid = "..midpoint.."...")
-            for id,n in pairs(bdb.sortedButtons) do
-               if destFrame.name == n then
-                  id = id + add
-                  if id < 1 then id = 1 end
-                  if id > (#bdb.sortedButtons+1) then id = id - 1 end
-                  tinsert(bdb.sortedButtons, id, self.name)
-                  inserted = true
-                  break
-               end
-            end
+         tinsert(bdb.sortedButtons, placeholderIdx, self.name)
+         oldSorted = nil
+         mod:SortFrames(destBin)
+         if destBin ~= bin then
+            mod:SortFrames(bin) -- re-sort source bin without the moved button
          end
-         if inserted then
-            oldSorted = nil
-            mod:SortFrames(destParent)
-            return
-         end
+      else
+         -- No placeholder visible, roll state back
+         local bdb = db.bins[bin.binId]
+         bdb.sortedButtons = oldSorted
+         self:SetParent(bin)
+         mod:SortFrames(bin)
       end
-      -- no valid destination, roll state back
-      bdb.sortedButtons = oldSorted
-      self:SetParent(bin)
-      mod:SortFrames(bin)
    end
 
    function mod:DataBlockConfig(name, var, global)
