@@ -834,6 +834,16 @@ function mod:ToggleButtonLock()
       end
    end
    for _,bin in ipairs(bins) do
+      if not bin._editOverlay then
+         bin._editOverlay = bin:CreateTexture(nil, "BACKGROUND")
+         bin._editOverlay:SetAllPoints(bin)
+         bin._editOverlay:SetColorTexture(0, 0.2, 0.5, 0.3)
+      end
+      if unlockButtons then
+         bin._editOverlay:Show()
+      else
+         bin._editOverlay:Hide()
+      end
       bin:ShowOrHide()
    end
 end
