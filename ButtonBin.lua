@@ -240,7 +240,8 @@ local function LDB_OnLeave(self)
    bin:ShowOrHide(true)
    self:resizeWindow()
    if not obj then return end
-   if mod:MouseIsOver(GameTooltip) and (obj.tooltiptext or obj.OnTooltipShow)
+   local mouseOver = securecallfunction(GameTooltip.IsMouseOver, GameTooltip)
+   if mouseOver and (obj.tooltiptext or obj.OnTooltipShow)
    then
       return
    end
