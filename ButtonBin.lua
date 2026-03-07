@@ -2653,7 +2653,7 @@ end
 function mod:MouseIsOver(frame)
    if frame and frame.IsMouseOver then
       local over = frame:IsMouseOver()
-      if issecretvalue(over) then
+      if issecretvalue and issecretvalue(over) then
          return false
       end
       return over
