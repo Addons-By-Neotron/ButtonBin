@@ -145,6 +145,10 @@ local function ColorToHex(c)
    return ("%02x%02x%02x"):format(c[1]*255, c[2]*255, c[3]*255)
 end
 
+local function ColorStr(colorHex, text)
+    return fmt("|cff%s%s|r", colorHex, text or "")
+end
+
 local GameTooltip = GameTooltip
 local function GT_OnLeave(self)
    self:SetScript("OnLeave", self.oldOnLeave)
@@ -387,18 +391,18 @@ local function TextUpdater(frame, value, name, obj, delay)
 		       labelColor, obj.label, textColor, obj.text)
 
          else
-            text = fmt("|cff%s%s|r", labelColor, obj.label)
+            text = ColorStr(labelColor, obj.label)
          end
-      elseif showLabel and type == "launcher" then
+      elseif showLabel and obj.type == "launcher" then
          -- show the addonname for launchers if no label is set
          local addonName, addonTitle = GetAddOnInfo(obj.tocname or name)
-         text = fmt("|cff%s%s|r", labelColor, addonTitle or addonName or name)
+         text = ColorStr(labelColor, addonTitle or addonName or name)
       elseif showText and obj.text then
          if showValue and obj.value then
             text = fmt("|cff%s%s|cff%s%s|r", valueColor,
                        obj.value, unitColor, obj.suffix or "")
          else
-            text = fmt("|cff%s%s|r", textColor, obj.text)
+            text = ColorStr(textColor, obj.text)
          end
       end
       frame.buttonBinText = text

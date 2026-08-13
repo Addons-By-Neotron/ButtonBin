@@ -104,9 +104,10 @@ end
 
 if not Jostle.hooks.UIParent_ManageFramePositions then
 	Jostle.hooks.UIParent_ManageFramePositions = true
-	hooksecurefunc("UIParent_ManageFramePositions", function()
-		if Jostle.UIParent_ManageFramePositions then
-			Jostle:UIParent_ManageFramePositions()
+	local funcName = UIParent_ManageFramePositions and "UIParent_ManageFramePositions" or "ManageFramePositions"
+	hooksecurefunc(funcName, function()
+		if Jostle.ManageFramePositions then
+			Jostle:ManageFramePositions()
 		end
 	end)
 end
