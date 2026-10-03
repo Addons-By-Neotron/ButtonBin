@@ -1967,18 +1967,20 @@ function mod:SortFrames(bin)
 
    local hpadding = (sdb.hpadding or 0)
    local vpadding = (sdb.size + (sdb.vpadding or 0))
+   -- vertical padding also goes above the first row, not just below each row
+   local top = inset + (sdb.vpadding or 0)
    local frameAlign = {}
    if not bdb.hideBinIcon then
       previousFrame = bin.button
       previousFrame:resizeWindow()
       previousFrame:ClearAllPoints()
-      previousFrame:SetPoint(anchor, bin, anchor, xmulti*inset, ymulti*inset)
+      previousFrame:SetPoint(anchor, bin, anchor, xmulti*inset, ymulti*top)
       width = previousFrame:GetWidth() + inset
-      height = vpadding + inset
+      height = vpadding + top
       if bdb.width > 1 then
          xoffset = hpadding + width
          count = 2
-         frameAlign[1] = { frame = previousFrame, width = xoffset, ypos = ymulti*inset }
+         frameAlign[1] = { frame = previousFrame, width = xoffset, ypos = ymulti*top }
       else
          previousFrame = nil
       end
@@ -1986,7 +1988,7 @@ function mod:SortFrames(bin)
       bin.button:ClearAllPoints()
       bin.button:Hide()
       width = inset
-      height = inset
+      height = top
    end
    local lineWidth = 0
    for _,name in ipairs(sorted) do
